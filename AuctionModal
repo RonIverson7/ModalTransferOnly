@@ -1,0 +1,656 @@
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Modal, ScrollView, Image, TouchableOpacity, TextInput, Alert, Dimensions, FlatList } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [bidAmount, setBidAmount] = useState('');
+  const [showBidSuccess, setShowBidSuccess] = useState(false);
+  const [selectedTab, setSelectedTab] = useState('details');
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  // Images from API (primary_image + images[])
+  const images = item ? [
+    item.primary_image,
+    ...(Array.isArray(item.images) ? item.images : [])
+  ].filter(Boolean) : [];
+  
+  // Handle scroll end to update selected image index
+  const onScrollEnd = (event) => {
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const viewSize = event.nativeEvent.layoutMeasurement.width;
+    const selectedIndex = Math.round(contentOffset / viewSize);
+    setSelectedImageIndex(selectedIndex);
+  };
+
+  // Handle swipe for image navigation
+  const handleSwipe = (dx) => {
+    if (Math.abs(dx) > 50) {
+      if (dx > 0) {
+        // Swiped right - go to previous image
+        setSelectedImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+      } else {
+        // Swiped left - go to next image
+        setSelectedImageIndex(prev => (prev + 1) % images.length);
+      }
+    }
+  };
+
+  // Handle image press (removed zoom functionality)
+  const handleImagePress = () => {
+    // No zoom functionality, just cycle to next image
+    setSelectedImageIndex(prev => (prev + 1) % images.length);
+  };
+
+  // Auction-only fields with robust fallbacks (DB and legacy)
+  const startPriceVal = item ? Number(
+    item.startPrice ?? item.startingPrice ?? item.start_price ?? 0
+  ) : 0;
+  const minIncrementVal = item ? Number(
+    item.minIncrement ?? item.min_increment ?? 0
+  ) : 0;
+  const startsAt = item ? (
+    item.startAt ?? item.start_time ?? null
+  ) : null;
+  const endsAt = item ? (
+    item.endAt ?? item.endTime ?? item.endsAt ?? null
+  ) : null;
+  const singleBidOnly = item ? (item.singleBidOnly ?? item.single_bid_only ?? false) : false;
+
+  // Debug: log incoming item and derived auction fields
+  useEffect(() => {
+    if (visible && item) {
+      console.debug('[AuctionModal] Item + derived fields', {
+        item,
+        startPriceVal,
+        minIncrementVal,
+        startsAt,
+        endsAt,
+        singleBidOnly
+      });
+    }
+  }, [visible, item]);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setSelectedImageIndex(0);
+      setBidAmount('');
+      setShowBidSuccess(false);
+      setSelectedTab('details');
+      setIsDescriptionExpanded(false);
+    }
+  }, [visible]);
+
+  if (!visible || !item) return null;
+
+  const handlePlaceBid = () => {
+    const bid = parseFloat(bidAmount);
+    if (!isNaN(bid) && bid >= startPriceVal) {
+      setShowBidSuccess(true);
+      setTimeout(() => {
+        try { onPlaceBid?.(item, bid); } catch (e) {}
+        onClose?.();
+        setBidAmount('');
+        setShowBidSuccess(false);
+      }, 1500);
+    } else {
+      Alert.alert('Invalid Bid', `Bid must be at least ₱${startPriceVal}`);
+    }
+  };
+
+  // Truncate description to fit available space
+  const MAX_DESCRIPTION_LENGTH = 300;
+  const description = item.description || 'No description provided.';
+  const isTruncated = description.length > MAX_DESCRIPTION_LENGTH;
+  const displayDescription = isDescriptionExpanded 
+    ? description 
+    : description.substring(0, MAX_DESCRIPTION_LENGTH);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.breadcrumb}>Marketplace / Auction</Text>
+              <Text style={styles.title}>{item.title}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={28} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Gallery with Swipe Support */}
+            <View style={styles.gallery}>
+              <FlatList
+                data={images}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item, index) => index.toString()}
+                onMomentumScrollEnd={onScrollEnd}
+                renderItem={({ item }) => (
+                  <View style={styles.imageContainer}>
+                    <Image
+                      source={{ uri: item }}
+                      style={styles.mainImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+                getItemLayout={(data, index) => ({
+                  length: Dimensions.get('window').width,
+                  offset: Dimensions.get('window').width * index,
+                  index,
+                })}
+              />
+
+              {/* Image Counter */}
+              {images.length > 1 && (
+                <View style={styles.imageCounter}>
+                  <Text style={styles.imageCounterText}>
+                    {selectedImageIndex + 1}/{images.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Quick Info */}
+            <View style={styles.quickInfo}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Medium</Text>
+                <Text style={styles.infoValue}>{item.medium || 'N/A'}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Dimensions</Text>
+                <Text style={styles.infoValue}>{item.dimensions || 'N/A'}</Text>
+              </View>
+              {item.year_created && (
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Year</Text>
+                  <Text style={styles.infoValue}>{item.year_created}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Artist Info */}
+            <View style={styles.artistSection}>
+              <Image
+                source={{ uri: item.seller?.profilePicture || `https://ui-avatars.com/api/?name=${item.seller?.shopName || 'Artist'}&background=d4b48a&color=fff&size=40` }}
+                style={styles.artistAvatar}
+              />
+              <View style={styles.artistInfo}>
+                <Text style={styles.artistName}>{item.seller?.shopName || 'Unknown Artist'}</Text>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                  <Text style={styles.verifiedText}>Verified Seller</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.tabsContainer}>
+              {['details', 'auction-info', 'shipping'].map(tab => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, selectedTab === tab && styles.tabActive]}
+                  onPress={() => setSelectedTab(tab)}
+                >
+                  <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
+                    {tab === 'details' && 'Details'}
+                    {tab === 'auction-info' && 'Auction Info'}
+                    {tab === 'shipping' && 'Shipping'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Tab Content */}
+            <View style={styles.tabContent}>
+              {selectedTab === 'details' && (
+                <View>
+                  <Text style={styles.description}>{displayDescription}</Text>
+                  {isTruncated && (
+                    <TouchableOpacity onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
+                      <Text style={styles.seeMoreBtn}>
+                        {isDescriptionExpanded ? 'see less' : '... see more'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {selectedTab === 'auction-info' && (
+                <View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Auction Type</Text>
+                    <Text style={styles.shipValue}>Blind Auction - Sealed Bids</Text>
+                  </View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Starting Price</Text>
+                    <Text style={styles.shipValue}>₱{startPriceVal.toLocaleString()}</Text>
+                  </View>
+                  {minIncrementVal > 0 && (
+                    <View style={styles.shipOption}>
+                      <Text style={styles.shipLabel}>Minimum Bid Increment</Text>
+                      <Text style={styles.shipValue}>₱{minIncrementVal.toLocaleString()}</Text>
+                    </View>
+                  )}
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Auction Starts</Text>
+                    <Text style={styles.shipValue}>
+                      {startsAt ? new Date(startsAt).toLocaleString() : 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Auction Ends</Text>
+                    <Text style={styles.shipValue}>
+                      {endsAt ? new Date(endsAt).toLocaleString() : 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Single Bid Only</Text>
+                    <Text style={styles.shipValue}>{singleBidOnly ? '✅ Yes' : '❌ No'}</Text>
+                  </View>
+                </View>
+              )}
+
+              {selectedTab === 'shipping' && (
+                <View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Standard Shipping</Text>
+                    <Text style={styles.shipValue}>3-7 business days, insured</Text>
+                  </View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>Express Shipping</Text>
+                    <Text style={styles.shipValue}>1-3 business days, insured</Text>
+                  </View>
+                  <View style={styles.shipOption}>
+                    <Text style={styles.shipLabel}>International</Text>
+                    <Text style={styles.shipValue}>Worldwide delivery available</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Bid Section */}
+            {!showBidSuccess && (
+              <View style={styles.bidSection}>
+                <View style={styles.auctionStats}>
+                  {startPriceVal > 0 && (
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Starting Price</Text>
+                      <Text style={styles.statValue}>₱{startPriceVal.toLocaleString()}</Text>
+                    </View>
+                  )}
+                  {startsAt && (
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Starts</Text>
+                      <Text style={styles.statValue}>{new Date(startsAt).toLocaleDateString()}</Text>
+                    </View>
+                  )}
+                  {endsAt && (
+                    <View style={styles.statItem}>
+                      <Text style={styles.statLabel}>Ends</Text>
+                      <Text style={styles.statValue}>{new Date(endsAt).toLocaleDateString()}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text style={styles.bidFormLabel}>Your Sealed Bid</Text>
+                <View style={styles.bidInputContainer}>
+                  <Text style={styles.currencySymbol}>₱</Text>
+                  <TextInput
+                    style={styles.bidInput}
+                    placeholder={`Min ₱${startPriceVal}`}
+                    placeholderTextColor="#999"
+                    keyboardType="decimal-pad"
+                    value={bidAmount}
+                    onChangeText={setBidAmount}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.placeBidBtn, (!bidAmount || parseFloat(bidAmount) < startPriceVal) && styles.placeBidBtnDisabled]}
+                  onPress={handlePlaceBid}
+                  disabled={!bidAmount || parseFloat(bidAmount) < startPriceVal}
+                >
+                  <Text style={styles.placeBidBtnText}>Place Sealed Bid</Text>
+                </TouchableOpacity>
+                <Text style={styles.bidNote}>
+                  ℹ️ Bids are binding. You cannot see other participants' bids.
+                </Text>
+              </View>
+            )}
+
+            {/* Success Message */}
+            {showBidSuccess && (
+              <View style={styles.successContainer}>
+                <Ionicons name="checkmark-circle" size={60} color="#4CAF50" />
+                <Text style={styles.successText}>Bid Placed Successfully!</Text>
+                <Text style={styles.successSubtext}>
+                  Your sealed bid of ₱{bidAmount} has been placed. You'll be notified when the auction ends.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  container: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+    paddingTop: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  breadcrumb: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 2,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  content: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+  gallery: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imageContainer: {
+    width: Dimensions.get('window').width,
+    height: 300,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+  },
+  closeZoomButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  mainImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f0f0f0',
+  },
+  imageCounter: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  imageCounterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  quickInfo: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    gap: 8,
+  },
+  infoItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: 10,
+    color: '#999',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+  },
+  artistSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    gap: 10,
+  },
+  artistAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+  },
+  artistInfo: {
+    flex: 1,
+  },
+  artistName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  verifiedText: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fafafa',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#A68C7B',
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#999',
+  },
+  tabTextActive: {
+    color: '#A68C7B',
+  },
+  tabContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  description: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 19,
+  },
+  seeMoreBtn: {
+    fontSize: 12,
+    color: '#A68C7B',
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  shipOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  shipLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  shipValue: {
+    fontSize: 12,
+    color: '#666',
+    flex: 1,
+    textAlign: 'right',
+  },
+  bidSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  auctionStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#F5F0EB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#999',
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  bidFormLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  bidInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 10,
+    paddingHorizontal: 10,
+  },
+  currencySymbol: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#A68C7B',
+    marginRight: 4,
+  },
+  bidInput: {
+    flex: 1,
+    paddingVertical: 11,
+    fontSize: 15,
+    color: '#333',
+  },
+  placeBidBtn: {
+    backgroundColor: '#A68C7B',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  placeBidBtnDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  placeBidBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  bidNote: {
+    fontSize: 11,
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  successContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+  },
+  successText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  successSubtext: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
+});
