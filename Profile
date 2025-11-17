@@ -66,6 +66,7 @@ export default function ProfileScreen() {
   const [artLikesCount, setArtLikesCount] = useState(0);
   const [artUserLiked, setArtUserLiked] = useState(false);
   const [artNewComment, setArtNewComment] = useState("");
+  const commentListRef = React.useRef(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -1406,8 +1407,10 @@ export default function ProfileScreen() {
         editArtUploading={editArtUploading}
 
         commentsModalVisible={commentsModalVisible}
+        setCommentsModalVisible={setCommentsModalVisible}
         closeCommentsModal={closeCommentsModal}
         renderArtComment={renderArtComment}
+        commentListRef={commentListRef}
         commentPage={commentPage}
         hasMoreComments={hasMoreComments}
         loadingMoreComments={loadingMoreComments}
