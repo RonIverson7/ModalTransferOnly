@@ -4,11 +4,15 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../components/Header';
+
 import { supabase } from "../../supabase/supabaseClient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useUser } from '../contexts/UserContext';
 import AndroidFooterSpacer from '../components/Footer';
-import HomeModal from '../components/HomeModal';
+import UploadModalHome from '../components/UploadModalHome';
+import CommentModal from '../components/CommentModal';
+import SetProfileModalinHome from '../components/SetProfileModalinHome';
+import PreferenceModal from '../components/PreferenceModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -17,7 +21,7 @@ const HomeScreen = () => {
   const { userData } = useUser();
   const role = userData?.role || null;
   const currentUserId = userData?.id || null;
-  
+
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedImages, setSelectedImages] = useState([]); // Array of images for carousel
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // Current image index
@@ -42,12 +46,11 @@ const HomeScreen = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  
+
   // Art interests modal
   const [interestsModalVisible, setInterestsModalVisible] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [hasArtPreferences, setHasArtPreferences] = useState(false);
-
 
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [currentPostComments, setCurrentPostComments] = useState([]);
@@ -59,62 +62,14 @@ const HomeScreen = () => {
   const [commentPage, setCommentPage] = useState(1);
   const [hasMoreComments, setHasMoreComments] = useState(true);
   const [loadingMoreComments, setLoadingMoreComments] = useState(false);
-  
+
   // Keyboard visibility tracking (for Android behavior like viewGallery)
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const commentListRef = React.useRef(null);
 
-
   // Profile modal and fields
   const [profileModalVisible, setProfileModalVisible] = useState(false);
-
-
-  // Android hardware back: close Comments modal if open
-  useFocusEffect(
-    React.useCallback(() => {
-      if (Platform.OS !== 'android') return undefined;
-      const onBack = () => {
-        if (commentModalVisible) {
-          setCommentModalVisible(false);
-          return true; // consume
-        }
-        return false; // allow default
-      };
-      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
-      return () => sub.remove();
-    }, [commentModalVisible])
-  );
-
-  // Extra safety: when the comments modal is open, force-close on hardware back
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    if (!commentModalVisible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setCommentModalVisible(false);
-      return true;
-    });
-    return () => sub.remove();
-  }, [commentModalVisible]);
-
-  // Keyboard listeners (tracking keyboard state without auto-scroll)
-  useEffect(() => {
-    const onShow = (e) => {
-      setKeyboardVisible(true);
-      if (Platform.OS === 'android') {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
-    };
-    const onHide = () => {
-      setKeyboardVisible(false);
-      setKeyboardHeight(0);
-    };
-
-    const subShow = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', onShow);
-    const subHide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', onHide);
-    return () => { try { subShow.remove(); subHide.remove(); } catch {} };
-  }, []);
-
 
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -131,19 +86,14 @@ const HomeScreen = () => {
   const [image, setImage] = useState(null);
   const [backgroundImage, setBackgroundImage] = useState(null);
 
-
   // Temporary unsaved edits
   const [tempImage, setTempImage] = useState(null);
   const [tempBackgroundImage, setTempBackgroundImage] = useState(null);
 
-
   const formattedDate = birthday.toLocaleDateString("en-US");
-
 
   const router = useRouter();
   const API_BASE = "http://192.168.100.87:3000/api";
-
-
 
   // Helper: coerce various shapes into a valid uri string
   const ensureUri = (value) => {
@@ -159,7 +109,6 @@ const HomeScreen = () => {
     return null;
   };
 
-  
   // Check if user has art preferences
   const checkArtPreferences = async (at, rt) => {
     try {
@@ -170,11 +119,11 @@ const HomeScreen = () => {
         },
       });
       const data = await res.json();
-      
+
       if (data?.artPreference) {
         // Check if user has selected at least one preference
         const prefs = data.artPreference;
-        const hasPreferences = Object.keys(prefs).some(key => 
+        const hasPreferences = Object.keys(prefs).some(key =>
           key !== 'userId' && key !== 'id' && key !== 'created_at' && prefs[key] === true
         );
         setHasArtPreferences(hasPreferences);
@@ -186,7 +135,6 @@ const HomeScreen = () => {
       return false;
     }
   };
-
 
   // Comment menu handlers
   const onOpenCommentMenu = (comment) => {
@@ -253,10 +201,8 @@ const HomeScreen = () => {
               },
             });
             if (!res.ok) throw new Error('Failed to delete');
-            
             // Local remove from comments list
             setCurrentPostComments(prev => prev.filter(c => c.id !== comment.id));
-            
             // Update comment count
             setComments(prev => ({
               ...prev,
@@ -304,7 +250,6 @@ const HomeScreen = () => {
       });
       const data = await res.json();
 
-
       if (data?.profile) {
         const p = data.profile;
         setFirstName(p.firstName || "");
@@ -324,7 +269,6 @@ const HomeScreen = () => {
         const coverUrl = p.coverPicture || p.cover;
         if (avatarUrl) setImage({ uri: avatarUrl });
         if (coverUrl) setBackgroundImage({ uri: coverUrl });
-
 
         // Only show modal if profile is incomplete (you can tweak the fields checked)
         if (!p.username || !p.firstName || !p.lastName) {
@@ -383,7 +327,6 @@ const HomeScreen = () => {
       setRole(null);
     }
   };
-
 
   useEffect(() => {
     const init = async () => {
@@ -447,7 +390,6 @@ const HomeScreen = () => {
     }, [selectedImage, selectedImages.length, commentModalVisible, modalVisible, profileModalVisible, interestsModalVisible])
   );
 
-
   const fetchPosts = async (at = accessToken, rt = refreshToken, page = 1, append = false) => {
     try {
       if (!append) {
@@ -457,7 +399,6 @@ const HomeScreen = () => {
       }
       // Use userId from UserContext instead of fetching from supabase
       const userId = userData?.id || currentUserId;
-
 
       const res = await fetch(`${API_BASE}/homepage/getPost?page=${page}&limit=10`, {
         method: 'GET',
@@ -469,7 +410,7 @@ const HomeScreen = () => {
 
       // Combine regular posts and announcements, just like web version
       const allPosts = [...(data.announcements || []), ...(data.posts || [])];
-      
+
       if (append) {
         // Append to existing posts (for load more)
         setPosts(prev => [...prev, ...allPosts]);
@@ -477,11 +418,10 @@ const HomeScreen = () => {
         // Replace posts (for initial load or refresh)
         setPosts(allPosts);
       }
-      
+
       // Check if there are more posts to load
       setHasMorePosts(allPosts.length >= 10);
       setCurrentPage(page);
-
 
       const reactCounts = {};
       data.reacts?.forEach(r => {
@@ -489,13 +429,11 @@ const HomeScreen = () => {
       });
       setLikes(reactCounts);
 
-
       const commentCounts = {};
       data.comments?.forEach(c => {
         commentCounts[c.postId] = (commentCounts[c.postId] || 0) + 1;
       });
       setComments(commentCounts);
-
 
       const initialLikes = {};
       data.reacts?.forEach(r => {
@@ -504,7 +442,6 @@ const HomeScreen = () => {
         }
       });
       setUserLikes(initialLikes);
-
 
     } catch (err) {
       setError(err.message);
@@ -536,7 +473,6 @@ const HomeScreen = () => {
     }
   };
 
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -549,23 +485,22 @@ const HomeScreen = () => {
     }
   };
 
-
   const uploadPost = async () => {
     if (!postText && pickedImages.length === 0 && existingImages.length === 0) return;
 
     const formData = new FormData();
     // Both create and edit use 'description' field
     formData.append("description", String(postText ?? ""));
-    
+
     // Check if we're editing or creating
     const isEditing = editingPostId !== null;
-    
+
     if (isEditing) {
       // For editing: send existing images, new images, and images to remove
       existingImages.forEach(imageUrl => {
         formData.append('existingImages', imageUrl);
       });
-      
+
       // Add new images with 'images' field name
       pickedImages.forEach((uri) => {
         const filename = uri.split("/").pop();
@@ -573,7 +508,7 @@ const HomeScreen = () => {
         const type = match ? `image/${match[1]}` : `image/jpeg`;
         formData.append('images', { uri, name: filename, type });
       });
-      
+
       // Add images to remove
       imagesToRemove.forEach(imageUrl => {
         formData.append('imagesToRemove', imageUrl);
@@ -591,12 +526,12 @@ const HomeScreen = () => {
 
     try {
       setLoading(true);
-      
-      const url = isEditing 
+
+      const url = isEditing
         ? `${API_BASE}/homepage/posts/${editingPostId}`
         : `${API_BASE}/homepage/createPost`;
       const method = isEditing ? "PUT" : "POST";
-      
+
       const res = await fetch(url, {
         method: method,
         credentials: 'include',
@@ -605,7 +540,7 @@ const HomeScreen = () => {
         },
         body: formData,
       });
-      
+
       if (!res.ok) {
         let errMsg = `Failed to ${isEditing ? 'update' : 'upload'} post (${res.status})`;
         try {
@@ -620,17 +555,17 @@ const HomeScreen = () => {
         } catch {}
         throw new Error(errMsg);
       }
-      
+
       let data = null;
       try { data = await res.json(); } catch {}
-      
+
       setModalVisible(false);
       setPostText("");
       setPickedImages([]);
       setEditingPostId(null);
       setExistingImages([]);
       setImagesToRemove([]);
-      
+
       Alert.alert('Success', `Post ${isEditing ? 'updated' : 'created'} successfully!`);
       // Refetch posts to get the updated data
       await fetchPosts();
@@ -641,7 +576,6 @@ const HomeScreen = () => {
       setLoading(false);
     }
   };
-
 
   const handleLike = async (postId) => {
     const alreadyLiked = userLikes[postId] || false;
@@ -684,7 +618,6 @@ const HomeScreen = () => {
     }
   };
 
-
   const openCommentsModal = async (postId, page = 1) => {
     try {
       if (page === 1) {
@@ -695,24 +628,24 @@ const HomeScreen = () => {
       } else {
         setLoadingMoreComments(true);
       }
-      
+
       const res = await fetch(`${API_BASE}/homepage/getComments?postId=${postId}&page=${page}&limit=10`, {
         method: 'GET',
         headers: { 'Cookie': `access_token=${accessToken}; refresh_token=${refreshToken}` },
       });
       const data = await res.json();
       const newComments = data.comments || [];
-      
+
       if (page === 1) {
         setCurrentPostComments(newComments);
       } else {
         setCurrentPostComments(prev => [...prev, ...newComments]);
       }
-      
+
       setCurrentPostId(postId);
       setCommentPage(page);
       setHasMoreComments(newComments.length >= 10);
-      
+
       if (page === 1) {
         setCommentModalVisible(true);
       }
@@ -723,19 +656,18 @@ const HomeScreen = () => {
       setLoadingMoreComments(false);
     }
   };
-  
+
   const loadMoreComments = () => {
     if (!loadingMoreComments && hasMoreComments && currentPostId) {
       openCommentsModal(currentPostId, commentPage + 1);
     }
   };
-  
+
   const showLessComments = () => {
     if (currentPostId) {
       openCommentsModal(currentPostId, 1);
     }
   };
-
 
   const postComment = async () => {
     if (!newCommentText.trim()) return;
@@ -778,11 +710,9 @@ const HomeScreen = () => {
     }
   };
 
-
   const removeImage = (index) => {
     setPickedImages(prev => prev.filter((_, i) => i !== index));
   };
-
 
   const pickProfileImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -792,12 +722,10 @@ const HomeScreen = () => {
       quality: 1,
     });
 
-
     if (!result.canceled) {
       setTempImage({ uri: result.assets[0].uri });
     }
   };
-
 
   const pickBackgroundImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -807,17 +735,14 @@ const HomeScreen = () => {
       quality: 1,
     });
 
-
     if (!result.canceled) {
       setTempBackgroundImage({ uri: result.assets[0].uri });
     }
   };
 
-
   const saveProfileToDB = async () => {
     try {
       const formData = new FormData();
-
 
       if (tempImage) {
         const filename = tempImage.uri.split("/").pop();
@@ -829,7 +754,6 @@ const HomeScreen = () => {
           type,
         });
       }
-
 
       if (tempBackgroundImage) {
         const filename = tempBackgroundImage.uri.split("/").pop();
@@ -855,7 +779,6 @@ const HomeScreen = () => {
       formData.append("address", String(address ?? ""));
       formData.append("bio", String(bio ?? ""));
       formData.append("about", String(about ?? ""));
-
 
       try {
         console.log("[home.js] updateProfile payload:", {
@@ -892,7 +815,6 @@ const HomeScreen = () => {
         throw new Error(msg);
       }
 
-
       alert("Profile saved successfully ");
       return true;
     } catch (err) {
@@ -902,20 +824,17 @@ const HomeScreen = () => {
     }
   };
 
-
   const handleProfileSave = async () => {
     const displayName =
       userNameField || [firstName, middleName, lastName].filter(Boolean).join(" ");
-    setUsername(displayName);
 
+    setUsername(displayName);
 
     setImage(tempImage);
     setBackgroundImage(tempBackgroundImage);
 
-
     // Save to DB, then refresh profile from server to ensure completeness flag is accurate
     const saved = await saveProfileToDB();
-
 
     if (saved) {
       // refresh local profile state based on backend response
@@ -926,7 +845,6 @@ const HomeScreen = () => {
     }
   };
 
-
   const onChangeDate = (event, selectedDate) => {
     if (selectedDate) {
       setBirthday(selectedDate);
@@ -935,7 +853,6 @@ const HomeScreen = () => {
       setShowDatePicker(false);
     }
   };
-
 
   const handleDeletePost = async (postId) => {
     Alert.alert(
@@ -978,16 +895,16 @@ const HomeScreen = () => {
     setMenuVisiblePostId(null);
     setEditingPostId(post.id);
     setPostText(post.text || '');
-    
+
     // Load existing images from post
     const postImages = post.image || post.images;
     const imageArray = Array.isArray(postImages) ? postImages : (postImages ? [postImages] : []);
     setExistingImages(imageArray);
-    
+
     // Clear new images and images to remove
     setPickedImages([]);
     setImagesToRemove([]);
-    
+
     setModalVisible(true);
   };
 
@@ -1022,7 +939,7 @@ const HomeScreen = () => {
         },
         body: JSON.stringify({ postId }),
       });
-      
+
       if (res.ok) {
         Alert.alert('Success', 'Post reported successfully. Our team will review it.');
       } else {
@@ -1039,148 +956,143 @@ const HomeScreen = () => {
     // Web checks: currentUser?.id === item.userId
     const postOwnerId = post.userId || post.user?.id || post.user?.userId || post.user_id;
     const isOwnPost = currentUserId && postOwnerId === currentUserId;
-    
+
     return (
-    <View key={post.id} style={styles.card}>
-      <View style={styles.userInfo}>
-        {(() => {
-          const avatarUri = ensureUri(post.user?.avatar);
-          return avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.placeholderCircle]} />
-          );
-        })()}
-        <Text style={styles.username}>{post.user?.name}</Text>
-        
-        {/* Three-dot menu for own posts */}
-        {isOwnPost && (
-          <View style={{ marginLeft: 'auto', position: 'relative' }}>
-            <TouchableOpacity 
-              onPress={() => setMenuVisiblePostId(menuVisiblePostId === post.id ? null : post.id)}
-              style={{ padding: 8 }}
+      <View key={post.id} style={styles.card}>
+        <View style={styles.userInfo}>
+          {(() => {
+            const avatarUri = ensureUri(post.user?.avatar);
+            return avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.placeholderCircle]} />
+            );
+          })()}
+          <Text style={styles.username}>{post.user?.name}</Text>
+
+          {/* Three-dot menu for own posts */}
+          {isOwnPost && (
+            <View style={{ marginLeft: 'auto', position: 'relative' }}>
+              <TouchableOpacity
+                onPress={() => setMenuVisiblePostId(menuVisiblePostId === post.id ? null : post.id)}
+                style={{ padding: 8 }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={24} color="#555" />
+              </TouchableOpacity>
+
+              {/* Dropdown menu */}
+              {menuVisiblePostId === post.id && (
+                <View style={styles.dropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => handleEditPost(post)}
+                  >
+                    <Ionicons name="pencil-outline" size={18} color="#555" />
+                    <Text style={styles.menuItemText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.menuItem, { borderTopWidth: 1, borderTopColor: '#eee' }]}
+                    onPress={() => handleDeletePost(post.id)}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#d9534f" />
+                    <Text style={[styles.menuItemText, { color: '#d9534f' }]}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Report button for other users' posts */}
+          {!isOwnPost && currentUserId && (
+            <TouchableOpacity
+              onPress={() => handleReportPost(post.id)}
+              style={{ marginLeft: 'auto', padding: 8 }}
             >
-              <Ionicons name="ellipsis-horizontal" size={24} color="#555" />
+              <Ionicons name="flag-outline" size={22} color="#555" />
             </TouchableOpacity>
-            
-            {/* Dropdown menu */}
-            {menuVisiblePostId === post.id && (
-              <View style={styles.dropdownMenu}>
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => handleEditPost(post)}
-                >
-                  <Ionicons name="pencil-outline" size={18} color="#555" />
-                  <Text style={styles.menuItemText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.menuItem, { borderTopWidth: 1, borderTopColor: '#eee' }]}
-                  onPress={() => handleDeletePost(post.id)}
-                >
-                  <Ionicons name="trash-outline" size={18} color="#d9534f" />
-                  <Text style={[styles.menuItemText, { color: '#d9534f' }]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          )}
+        </View>
+
+        {!!post.text && <Text style={styles.description}>{post.text}</Text>}
+
+        {(() => {
+          // Handle both single image and array of images
+          let imageArray = [];
+          if (Array.isArray(post.image)) {
+            imageArray = post.image;
+          } else if (post.image) {
+            imageArray = [post.image];
+          } else if (Array.isArray(post.images)) {
+            imageArray = post.images;
+          } else if (post.images) {
+            imageArray = [post.images];
+          }
+
+          const postImageUri = imageArray.length > 0 ? ensureUri(imageArray[0]) : null;
+
+          return postImageUri ? (
+            <TouchableOpacity onPress={() => {
+              setSelectedImages(imageArray.map(img => ({ uri: ensureUri(img) })));
+              setCurrentImageIndex(0);
+              setSelectedImage(true); // Just a flag to open modal
+            }}>
+              <Image source={{ uri: postImageUri }} style={styles.postImage} resizeMode="cover" />
+              {imageArray.length > 1 && (
+                <View style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                    1/{imageArray.length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : null;
+        })()}
+
+        {!!post.timestamp && (
+          <Text style={styles.timestamp}>{post.timestamp}</Text>
         )}
 
-        {/* Report button for other users' posts */}
-        {!isOwnPost && currentUserId && (
-          <TouchableOpacity 
-            onPress={() => handleReportPost(post.id)}
-            style={{ marginLeft: 'auto', padding: 8 }}
-          >
-            <Ionicons name="flag-outline" size={22} color="#555" />
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={() => handleLike(post.id)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons
+              name={userLikes[post.id] ? "heart" : "heart-outline"}
+              size={20}
+              color={userLikes[post.id] ? "red" : "#555"}
+            />
+            <Text style={styles.likeText}>{likes[post.id] || 0}</Text>
           </TouchableOpacity>
-        )}
-      </View>
 
-
-      {!!post.text && <Text style={styles.description}>{post.text}</Text>}
-
-
-      {(() => {
-        // Handle both single image and array of images
-        let imageArray = [];
-        if (Array.isArray(post.image)) {
-          imageArray = post.image;
-        } else if (post.image) {
-          imageArray = [post.image];
-        } else if (Array.isArray(post.images)) {
-          imageArray = post.images;
-        } else if (post.images) {
-          imageArray = [post.images];
-        }
-        
-        const postImageUri = imageArray.length > 0 ? ensureUri(imageArray[0]) : null;
-        
-        return postImageUri ? (
-          <TouchableOpacity onPress={() => {
-            setSelectedImages(imageArray.map(img => ({ uri: ensureUri(img) })));
-            setCurrentImageIndex(0);
-            setSelectedImage(true); // Just a flag to open modal
-          }}>
-            <Image source={{ uri: postImageUri }} style={styles.postImage} resizeMode="cover" />
-            {imageArray.length > 1 && (
-              <View style={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-              }}>
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-                  1/{imageArray.length}
-                </Text>
-              </View>
-            )}
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }} onPress={() => openCommentsModal(post.id)}>
+            <Feather name="message-circle" size={20} color="#555" />
+            <Text style={{ marginLeft: 4 }}>{comments[post.id] || 0}</Text>
           </TouchableOpacity>
-        ) : null;
-      })()}
-
-
-      {!!post.timestamp && (
-        <Text style={styles.timestamp}>{post.timestamp}</Text>
-      )}
-
-
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={() => handleLike(post.id)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Ionicons
-            name={userLikes[post.id] ? "heart" : "heart-outline"}
-            size={20}
-            color={userLikes[post.id] ? "red" : "#555"}
-          />
-          <Text style={styles.likeText}>{likes[post.id] || 0}</Text>
-        </TouchableOpacity>
-
-
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }} onPress={() => openCommentsModal(post.id)}>
-          <Feather name="message-circle" size={20} color="#555" />
-          <Text style={{ marginLeft: 4 }}>{comments[post.id] || 0}</Text>
-        </TouchableOpacity>
+        </View>
       </View>
-    </View>
     );
   };
 
   const renderEvent = ({ item: announcementPost }) => {
     // For announcement posts, look up full event data using eventId
-    const fullEvent = announcementPost.eventId 
-      ? events.find(e => e.eventId === announcementPost.eventId) 
+    const fullEvent = announcementPost.eventId
+      ? events.find(e => e.eventId === announcementPost.eventId)
       : null;
     const displayData = fullEvent || announcementPost;
-    
+
     return (
-      <TouchableOpacity 
-        key={announcementPost.id} 
+      <TouchableOpacity
+        key={announcementPost.id}
         style={[styles.card, styles.eventCard]}
-        onPress={() => router.push({ 
-          pathname: '/(drawer)/viewEvents', 
-          params: { eventId: String(announcementPost.eventId || displayData.eventId || displayData.id) } 
+        onPress={() => router.push({
+          pathname: '/(drawer)/viewEvents',
+          params: { eventId: String(announcementPost.eventId || displayData.eventId || displayData.id) }
         })}
       >
         <View style={styles.eventBadge}>
@@ -1193,7 +1105,7 @@ const HomeScreen = () => {
         )}
 
         <Text style={styles.eventTitle}>{displayData.title || announcementPost.title}</Text>
-        
+
         {!!displayData.details && (
           <Text style={styles.description} numberOfLines={3}>
             {displayData.details}
@@ -1229,16 +1141,15 @@ const HomeScreen = () => {
     );
   };
 
-
   // Chat bubble style comment render
   const renderComment = ({ item }) => (
     <View style={{ flexDirection: 'row', marginBottom: 16, paddingHorizontal: 16 }}>
       {(() => {
         const avatarUri = ensureUri(item.user?.avatar);
         return avatarUri ? (
-          <Image 
-            source={{ uri: avatarUri }} 
-            style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} 
+          <Image
+            source={{ uri: avatarUri }}
+            style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
           />
         ) : (
           <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' }}>
@@ -1308,7 +1219,6 @@ const HomeScreen = () => {
     </View>
   );
 
-
   const handleSearch = (query) => {
     setSearchQuery(query);
   };
@@ -1351,7 +1261,7 @@ const HomeScreen = () => {
     }
 
     const query = searchQuery.toLowerCase().trim();
-    
+
     // Filter posts by username, post text, or title (for announcements)
     const filteredPosts = posts.filter(p => 
       (p.user?.name && p.user.name.toLowerCase().includes(query)) ||
@@ -1378,9 +1288,7 @@ const HomeScreen = () => {
     <SafeAreaView style={styles.container}>
       <Header title="HOME" showSearch={true} onSearch={handleSearch} />
 
-
       {error && <Text style={{ color: 'red', margin: 10 }}>{error}</Text>}
-
 
       {(role === "artist" || role === "admin") && (
         <TouchableOpacity style={styles.postOverlayBox} onPress={() => {
@@ -1392,12 +1300,10 @@ const HomeScreen = () => {
           setModalVisible(true);
         }}>
           {/* Show user's profile avatar if available; fallback keeps same size */}
-  
           <Ionicons name="create-outline" size={24} color="#555" style={{ marginRight: 8 }} />
           <Text style={{ color: '#555' }}>Share inspiration, artwork or a thought</Text>
         </TouchableOpacity>
       )}
-
 
       <FlatList
         data={filteredData}
@@ -1462,16 +1368,80 @@ const HomeScreen = () => {
         }
       />
 
-      <HomeModal
-        // Image fullscreen modal props
-        selectedImage={selectedImage}
-        selectedImages={selectedImages}
-        currentImageIndex={currentImageIndex}
-        setSelectedImage={setSelectedImage}
-        setSelectedImages={setSelectedImages}
-        setCurrentImageIndex={setCurrentImageIndex}
-        
-        // Create Post modal props
+      <Modal
+        visible={selectedImage !== null && selectedImages.length > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setSelectedImage(null);
+          setSelectedImages([]);
+          setCurrentImageIndex(0);
+        }}
+      >
+        <View style={styles.fullScreenContainer}>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 40,
+              right: 20,
+              zIndex: 10,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              borderRadius: 20,
+              width: 40,
+              height: 40,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => {
+              setSelectedImage(null);
+              setSelectedImages([]);
+              setCurrentImageIndex(0);
+            }}
+          >
+            <Ionicons name="close" size={24} color="white" />
+          </TouchableOpacity>
+
+          {selectedImages.length > 1 && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 40,
+                left: 20,
+                zIndex: 10,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 16,
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>
+                {currentImageIndex + 1}/{selectedImages.length}
+              </Text>
+            </View>
+          )}
+
+          <FlatList
+            data={selectedImages}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => index.toString()}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.round(
+                event.nativeEvent.contentOffset.x / event.nativeEvent.layoutMeasurement.width
+              );
+              setCurrentImageIndex(index);
+            }}
+            renderItem={({ item }) => (
+              <View style={{ width: SCREEN_WIDTH, justifyContent: 'center', alignItems: 'center' }}>
+                <Image source={item} style={styles.fullScreenImage} resizeMode="contain" />
+              </View>
+            )}
+          />
+        </View>
+      </Modal>
+
+      <UploadModalHome
         modalVisible={modalVisible}
         setModalVisible={setModalVisible}
         postText={postText}
@@ -1489,8 +1459,10 @@ const HomeScreen = () => {
         uploadPost={uploadPost}
         pickImage={pickImage}
         removeImage={removeImage}
-        
-        // Comments modal props
+        styles={styles}
+      />
+
+      <CommentModal
         commentModalVisible={commentModalVisible}
         setCommentModalVisible={setCommentModalVisible}
         currentPostComments={currentPostComments}
@@ -1504,8 +1476,10 @@ const HomeScreen = () => {
         loadingMoreComments={loadingMoreComments}
         loadMoreComments={loadMoreComments}
         showLessComments={showLessComments}
-        
-        // Profile modal props
+        styles={styles}
+      />
+
+      <SetProfileModalinHome
         profileModalVisible={profileModalVisible}
         setProfileModalVisible={setProfileModalVisible}
         firstName={firstName}
@@ -1537,8 +1511,10 @@ const HomeScreen = () => {
         pickProfileImage={pickProfileImage}
         pickBackgroundImage={pickBackgroundImage}
         handleProfileSave={handleProfileSave}
-        
-        // Art Interests modal props
+        styles={styles}
+      />
+
+      <PreferenceModal
         interestsModalVisible={interestsModalVisible}
         setInterestsModalVisible={setInterestsModalVisible}
         selectedInterests={selectedInterests}
@@ -1547,10 +1523,9 @@ const HomeScreen = () => {
         refreshToken={refreshToken}
         setHasArtPreferences={setHasArtPreferences}
         API_BASE={API_BASE}
-        
-        // Styles
         styles={styles}
       />
+
       <AndroidFooterSpacer />
     </SafeAreaView>
   );
