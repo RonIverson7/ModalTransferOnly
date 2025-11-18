@@ -84,6 +84,8 @@ export default function SellerDashboardScreen() {
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [returnDetails, setReturnDetails] = useState(null);
   const [returnDetailsLoading, setReturnDetailsLoading] = useState(false);
+  const [showEvidenceViewer, setShowEvidenceViewer] = useState(false);
+  const [currentEvidenceIndex, setCurrentEvidenceIndex] = useState(0);
 
   // Message/conversation state
   const [newMessage, setNewMessage] = useState('');
@@ -1651,17 +1653,24 @@ const handleDeleteProduct = (product) => {
                         </View>
                       )}
                       {/* Evidence Images */}
-                      {returnDetails.evidence && returnDetails.evidence.length > 0 && (
+                      {returnDetails.evidenceImages && returnDetails.evidenceImages.length > 0 && (
                         <View style={styles.detailSection}>
                           <Text style={styles.detailSectionTitle}>Evidence</Text>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {returnDetails.evidence.map((imageUrl, index) => (
-                              <Image 
+                            {returnDetails.evidenceImages.map((imageUrl, index) => (
+                              <TouchableOpacity
                                 key={index}
-                                source={{ uri: imageUrl }}
-                                style={styles.evidenceImage}
-                                resizeMode="cover"
-                              />
+                                onPress={() => {
+                                  setCurrentEvidenceIndex(index);
+                                  setShowEvidenceViewer(true);
+                                }}
+                              >
+                                <Image 
+                                  source={{ uri: imageUrl }}
+                                  style={styles.evidenceImage}
+                                  resizeMode="cover"
+                                />
+                              </TouchableOpacity>
                             ))}
                           </ScrollView>
                         </View>
@@ -1767,6 +1776,35 @@ const handleDeleteProduct = (product) => {
                   <View style={styles.bottomSpacer} />
                 </ScrollView>
             </KeyboardAvoidingView>
+          </View>
+        </Modal>
+      )}
+
+      {showEvidenceViewer && returnDetails?.evidenceImages && returnDetails.evidenceImages.length > 0 && (
+        <Modal
+          visible={showEvidenceViewer}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowEvidenceViewer(false)}
+        >
+          <View style={styles.evidenceViewerOverlay}>
+            <TouchableOpacity
+              style={styles.evidenceViewerBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowEvidenceViewer(false)}
+            >
+              <Image
+                source={{ uri: returnDetails.evidenceImages[currentEvidenceIndex] }}
+                style={styles.evidenceFullscreenImage}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.evidenceViewerClose}
+              onPress={() => setShowEvidenceViewer(false)}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
           </View>
         </Modal>
       )}
@@ -5122,7 +5160,27 @@ overviewPeriodTextActive: {
   bottomSpacer: {
     height: 30,
   },
-
+  evidenceViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  evidenceViewerBackdrop: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  evidenceFullscreenImage: {
+    width: '100%',
+    height: '80%',
+  },
+  evidenceViewerClose: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+  },
   auctionCardActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -5130,7 +5188,6 @@ overviewPeriodTextActive: {
     marginTop: 6,
     gap: 8,
   },
-
   auctionActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
