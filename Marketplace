@@ -132,6 +132,18 @@ const MarketplaceScreen = () => {
                 shopName: sellerData.shopName || 'Unknown Artist',
                 profilePicture: `https://ui-avatars.com/api/?name=${sellerData.shopName || 'Artist'}&background=d4b48a&color=fff&size=32`
               } : { shopName: 'Unknown Artist' };
+              const sellerUserId =
+                sellerData?.userId ||
+                sellerData?.id ||
+                aItem?.sellerUserId ||
+                aItem?.sellerId ||
+                aItem?.userId ||
+                a?.sellerUserId ||
+                a?.sellerId ||
+                a?.userId ||
+                a?.user_id ||
+                a?.ownerId ||
+                a?.owner_id;
               const categories = aItem?.categories || [];
               const current = a.currentBid ?? a.highestBid ?? null;
               const startPrice = a.startPrice ?? a.startingPrice ?? 0;
@@ -141,6 +153,7 @@ const MarketplaceScreen = () => {
               return {
                 id: a.auctionId || a.id,
                 marketItemId: a.auctionId || a.id,
+                sellerUserId,
                 title,
                 description: aItem?.description || a.description || '',
                 primary_image: primary,
@@ -796,6 +809,8 @@ const MarketplaceScreen = () => {
 
 // Marketplace Card Component
 const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
+  const { userData } = useUser();
+
   const getTimeRemaining = (endTime) => {
     if (!endTime) return '';
     const now = new Date();
@@ -815,6 +830,39 @@ const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
 
   const isAuction = item.listingType === 'auction';
   const salePercentage = item.originalPrice ? Math.round((1 - item.price / item.originalPrice) * 100) : 0;
+
+  const currentUserId = userData?.id || userData?.userId || null;
+  const currentShopName =
+    userData?.shopName ||
+    userData?.sellerProfile?.shopName ||
+    userData?.sellerProfile?.storeName ||
+    userData?.username ||
+    userData?.fullName;
+
+  const ownerId =
+    item.sellerUserId ||
+    item.seller?.userId ||
+    item.seller?.id ||
+    item.sellerId ||
+    item.seller_id ||
+    item.userId ||
+    item.ownerId;
+  const sellerName =
+    item.seller?.shopName ||
+    item.seller_name ||
+    item.sellerName;
+
+  const isOwnById =
+    !!currentUserId &&
+    !!ownerId &&
+    String(currentUserId) === String(ownerId);
+
+  const isOwnByName =
+    !!sellerName &&
+    !!currentShopName &&
+    sellerName.toString().trim().toLowerCase() === currentShopName.toString().trim().toLowerCase();
+
+  const isOwnListing = isOwnById || isOwnByName;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
@@ -892,22 +940,24 @@ const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
             </View>
           )}
           
-          <TouchableOpacity
-            style={[styles.addToCartBtn, isAuction && styles.bidBtn]}
-            onPress={(e) => {
-              e.stopPropagation();
-              isAuction ? onPress() : onAddToCart(item);
-            }}
-          >
-            <Ionicons 
-              name={isAuction ? 'trophy' : 'pricetag'} 
-              size={16} 
-              color="#fff" 
-            />
-            <Text style={styles.addToCartText}>
-              {isAuction ? 'Bid' : 'Buy'}
-            </Text>
-          </TouchableOpacity>
+          {!isOwnListing && (
+            <TouchableOpacity
+              style={[styles.addToCartBtn, isAuction && styles.bidBtn]}
+              onPress={(e) => {
+                e.stopPropagation();
+                isAuction ? onPress() : onAddToCart(item);
+              }}
+            >
+              <Ionicons 
+                name={isAuction ? 'trophy' : 'pricetag'} 
+                size={16} 
+                color="#fff" 
+              />
+              <Text style={styles.addToCartText}>
+                {isAuction ? 'Bid' : 'Buy'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>
