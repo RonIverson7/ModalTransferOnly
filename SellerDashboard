@@ -1680,29 +1680,55 @@ const handleDeleteProduct = (product) => {
                       {/* Conversation */}
                       <View style={styles.conversationSection}>
                         <Text style={styles.sectionTitle}>Conversation</Text>
-                        <ScrollView style={styles.conversationContainer} showsVerticalScrollIndicator={true}>
+                        <ScrollView
+                          style={styles.conversationContainer}
+                          showsVerticalScrollIndicator={true}
+                          nestedScrollEnabled={true}
+                        >
                           {returnDetails.messages && returnDetails.messages.length > 0 ? (
-                            returnDetails.messages.map((msg, index) => (
-                              <View key={index} style={styles.conversationItem}>
-                                <View style={styles.messageHeader}>
-                                  <Text style={styles.messageDate}>
-                                    {new Date(msg.createdAt).toLocaleDateString('en-US', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </Text>
-                                  {msg.isAdmin && (
-                                    <View style={styles.adminBadge}>
-                                      <Text style={styles.adminBadgeText}>Admin</Text>
+                            returnDetails.messages.map((msg, index) => {
+                              let senderName = 'User';
+
+                              if (msg.isAdmin) {
+                                senderName = 'Admin';
+                              } else if (msg.senderId === returnDetails.buyerId) {
+                                senderName = returnDetails.buyer?.username || 'Buyer';
+                              } else if (returnDetails.sellerProfile && msg.senderId === returnDetails.sellerProfile.userId) {
+                                senderName = returnDetails.sellerProfile?.shopName || 'Seller';
+                              }
+
+                              return (
+                                <View key={index} style={styles.conversationItem}>
+                                  <View style={styles.messageHeader}>
+                                    <View style={styles.messageMetaRow}>
+                                      <Text style={styles.messageDate}>
+                                        {new Date(msg.createdAt).toLocaleDateString('en-US', {
+                                          year: 'numeric',
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </Text>
+                                      <Text
+                                        style={[
+                                          styles.messageSender,
+                                          msg.isAdmin && styles.messageSenderAdmin,
+                                        ]}
+                                      >
+                                        {senderName}
+                                      </Text>
                                     </View>
-                                  )}
+                                    {msg.isAdmin && (
+                                      <View style={styles.adminBadge}>
+                                        <Text style={styles.adminBadgeText}>Admin</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <Text style={styles.messageText}>{msg.message}</Text>
                                 </View>
-                                <Text style={styles.messageText}>{msg.message}</Text>
-                              </View>
-                            ))
+                              );
+                            })
                           ) : (
                             <Text style={styles.noMessagesText}>No messages yet.</Text>
                           )}
@@ -4839,6 +4865,19 @@ overviewPeriodTextActive: {
   messageDate: {
     fontSize: 12,
     color: '#999',
+  },
+  messageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  messageSender: {
+    fontSize: 12,
+    color: '#4b5563',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  messageSenderAdmin: {
+    color: '#9c7c3c',
   },
   adminBadge: {
     backgroundColor: '#2196F3',
