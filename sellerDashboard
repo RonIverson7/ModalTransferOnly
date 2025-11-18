@@ -3078,7 +3078,8 @@ overviewPeriodTextActive: {
     padding: 16,
     backgroundColor: '#fff',
     borderRadius: 18,
-    marginHorizontal: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -4244,9 +4245,7 @@ overviewPeriodTextActive: {
   },
   
   returnsContainer: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 16,
+    padding: 16,
   },
   
   returnCard: {
