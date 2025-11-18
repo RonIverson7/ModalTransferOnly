@@ -68,6 +68,10 @@ export default function AddMarketProduct({
         Alert.alert('Error', 'Product title is required');
         return;
       }
+      if (addTitle.trim().length < 2) {
+        Alert.alert('Error', 'Title must be at least 2 characters long');
+        return;
+      }
       if (!addPrice || parseFloat(addPrice) <= 0) {
         Alert.alert('Error', 'Valid price is required');
         return;
