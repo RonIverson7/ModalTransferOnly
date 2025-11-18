@@ -14,7 +14,9 @@ import * as ImagePicker from 'expo-image-picker';
 import AddAuctionProduct from '../components/AddAuctionProduct';
 import AddMarketProduct from '../components/AddMarketProduct';
 import EditProductModal from '../components/EditProductModal';
-
+import EditPriceScheduleAuction from '../components/EditPriceScheduleAuction';
+import AuctionOptionModal from '../components/AuctionOptionModal.js';
+import AndroidFooterSpacer from '../components/Footer';
 const API_BASE = "http://192.168.100.87:3000/api";
 
 export default function SellerDashboardScreen() {
@@ -44,6 +46,12 @@ export default function SellerDashboardScreen() {
   const [sellerAuctions, setSellerAuctions] = useState([]);
   const [sellerAuctionsLoading, setSellerAuctionsLoading] = useState(false);
   const [auctionStatusFilter, setAuctionStatusFilter] = useState('');
+  
+  // Advanced auction features
+  const [nowTs, setNowTs] = useState(Date.now());
+  const [participantsByAuction, setParticipantsByAuction] = useState({});
+  const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  const [actionsAuction, setActionsAuction] = useState(null);
 
   // Orders state
   const [orders, setOrders] = useState([]);
@@ -130,6 +138,10 @@ export default function SellerDashboardScreen() {
   // Edit Product Modal states
   const [editModal, setEditModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Edit Auction Modal state
+  const [editAuctionModalOpen, setEditAuctionModalOpen] = useState(false);
+  const [selectedAuction, setSelectedAuction] = useState(null);
 
   // Fetch payout balance
   const fetchPayoutBalance = async () => {
@@ -378,6 +390,13 @@ export default function SellerDashboardScreen() {
     }
   };
 
+  // Open edit auction modal
+  const handleEditAuction = (auction) => {
+    if (!auction) return;
+    setSelectedAuction(auction);
+    setEditAuctionModalOpen(true);
+  };
+
   const activateAuctionNow = async (auctionId) => {
     if (!auctionId) return;
 
@@ -409,6 +428,186 @@ export default function SellerDashboardScreen() {
     }
   };
 
+  // Pause an active auction
+  const pauseAuction = async (auctionId) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const at = data?.session?.access_token || '';
+      const rt = data?.session?.refresh_token || '';
+
+      const response = await fetch(`${API_BASE}/auctions/${auctionId}/pause`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Cookie: `access_token=${at}; refresh_token=${rt}`,
+          Authorization: `Bearer ${at}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Pause endpoint not available');
+      }
+
+      Alert.alert('Success', 'Auction paused');
+      fetchSellerAuctions(auctionStatusFilter);
+      closeActionsModal();
+    } catch (error) {
+      console.error('Error pausing auction:', error);
+      Alert.alert('Error', error.message || 'Failed to pause auction');
+    }
+  };
+
+  // Resume a paused auction
+  const resumeAuction = async (auctionId) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const at = data?.session?.access_token || '';
+      const rt = data?.session?.refresh_token || '';
+
+      const response = await fetch(`${API_BASE}/auctions/${auctionId}/resume`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Cookie: `access_token=${at}; refresh_token=${rt}`,
+          Authorization: `Bearer ${at}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Resume endpoint not available');
+      }
+
+      Alert.alert('Success', 'Auction resumed');
+      fetchSellerAuctions(auctionStatusFilter);
+      closeActionsModal();
+    } catch (error) {
+      console.error('Error resuming auction:', error);
+      Alert.alert('Error', error.message || 'Failed to resume auction');
+    }
+  };
+
+  // Cancel an auction
+  const cancelAuction = async (auctionId) => {
+    Alert.alert(
+      'Cancel Auction',
+      'Cancel this auction? This action cannot be undone.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await supabase.auth.getSession();
+              const at = data?.session?.access_token || '';
+              const rt = data?.session?.refresh_token || '';
+
+              const response = await fetch(`${API_BASE}/auctions/${auctionId}/cancel`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: {
+                  Cookie: `access_token=${at}; refresh_token=${rt}`,
+                  Authorization: `Bearer ${at}`,
+                },
+              });
+
+              const result = await response.json();
+
+              if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Cancel endpoint not available');
+              }
+
+              Alert.alert('Success', 'Auction cancelled');
+              fetchSellerAuctions(auctionStatusFilter);
+              closeActionsModal();
+            } catch (error) {
+              console.error('Error cancelling auction:', error);
+              Alert.alert('Error', error.message || 'Failed to cancel auction');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Extend auction duration
+  const extendAuction = async (auctionId, minutes = 5) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const at = data?.session?.access_token || '';
+      const rt = data?.session?.refresh_token || '';
+
+      const response = await fetch(`${API_BASE}/auctions/${auctionId}/extend?minutes=${minutes}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Cookie: `access_token=${at}; refresh_token=${rt}`,
+          Authorization: `Bearer ${at}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Extend endpoint not available');
+      }
+
+      Alert.alert('Success', `Auction extended by ${minutes} minutes`);
+      fetchSellerAuctions(auctionStatusFilter);
+      closeActionsModal();
+    } catch (error) {
+      console.error('Error extending auction:', error);
+      Alert.alert('Error', error.message || 'Failed to extend auction');
+    }
+  };
+
+  // Actions modal handlers
+  const openActionsModal = (auction) => {
+    console.log('openActionsModal called with auction:', auction?.auctionId);
+    setActionsAuction(auction);
+    setActionsModalOpen(true);
+  };
+
+  const closeActionsModal = () => {
+    console.log('closeActionsModal called');
+    setActionsModalOpen(false);
+    setActionsAuction(null);
+  };
+
+  // Format countdown timer
+  const formatCountdown = (nowTs, startAt, endAt) => {
+    const now = new Date(nowTs);
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+
+    if (now < start) {
+      const ms = start - now;
+      const d = Math.floor(ms / 86400000);
+      const h = Math.floor((ms % 86400000) / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return { label: `Starts in ${d}d ${h}h ${m}m ${s}s`, state: 'scheduled' };
+    }
+
+    if (now >= start && now < end) {
+      const ms = end - now;
+      const d = Math.floor(ms / 86400000);
+      const h = Math.floor((ms % 86400000) / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return { label: `Ends in ${d}d ${h}h ${m}m ${s}s`, state: 'active' };
+    }
+
+    const ms = now - end;
+    const d = Math.floor(ms / 86400000);
+    const h = Math.floor((ms % 86400000) / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return { label: `Ended ${d}d ${h}h ${m}m ago`, state: 'ended' };
+  };
 
   // Fetch order stats (always get full stats regardless of filter)
 const fetchOrderStats = async () => {
@@ -1184,6 +1383,7 @@ const handleDeleteProduct = (product) => {
               }
             }}
             onActivateAuction={activateAuctionNow}
+            onOpenActionsModal={openActionsModal}
             />
 
           )}
@@ -1606,6 +1806,65 @@ const handleDeleteProduct = (product) => {
         }}
         styles={styles}
       />
+
+      {/* Edit Auction Modal */}
+      {selectedAuction && (
+        <EditPriceScheduleAuction
+          visible={editAuctionModalOpen}
+          onClose={() => {
+            setEditAuctionModalOpen(false);
+            setSelectedAuction(null);
+          }}
+          auction={selectedAuction}
+          onSaved={() => {
+            setEditAuctionModalOpen(false);
+            setSelectedAuction(null);
+            fetchSellerAuctions(auctionStatusFilter);
+          }}
+          styles={styles}
+        />
+      )}
+
+      {/* Auction Actions Modal */}
+      <AuctionOptionModal
+        visible={actionsModalOpen}
+        onClose={closeActionsModal}
+        auction={actionsAuction}
+        onEditAuction={handleEditAuction}
+        onActivateNow={(auction) => {
+          closeActionsModal();
+          activateAuctionNow(auction.auctionId || auction.id);
+        }}
+        onViewBids={async (auction) => {
+          closeActionsModal();
+          try {
+            const auctionId = auction.auctionId || auction.id;
+            const response = await fetch(`${API_BASE}/auctions/${auctionId}/bids`, {
+              credentials: 'include',
+            });
+            const data = await response.json();
+            if (data.data && Array.isArray(data.data)) {
+              const bids = data.data.sort((a, b) => b.amount - a.amount);
+              const topBid = bids[0];
+              let message = 'Bid History:\n\n';
+              if (topBid) {
+                message += `Top Bid: ₱${Number(topBid.amount).toLocaleString()}\n`;
+                message += `Bidder: ${topBid.bidder_name || 'Anonymous'}\n\n`;
+              }
+              message += `Total Bids: ${bids.length}`;
+              Alert.alert('View Bids', message);
+            } else {
+              Alert.alert('View Bids', 'No bids yet for this auction');
+            }
+          } catch (error) {
+            Alert.alert('Error', 'Failed to load bids: ' + error.message);
+          }
+        }}
+        onPause={pauseAuction}
+        onResume={resumeAuction}
+        onCancel={cancelAuction}
+      />
+        <AndroidFooterSpacer />
     </SafeAreaView>
 
   );
@@ -1941,6 +2200,7 @@ const ProductsTab = ({
   setAuctionStatusFilter,
   onRefreshAuctions,
   onActivateAuction,
+  onOpenActionsModal,
 }) => {
   const formatDateTime = (value) => {
     if (!value) return 'Not set';
@@ -2117,16 +2377,6 @@ const ProductsTab = ({
       );
     }
 
-    if (sellerAuctions.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={80} color="#ccc" />
-          <Text style={styles.emptyTitle}>No Auctions Found</Text>
-          <Text style={styles.emptyText}>Create an auction schedule to manage it here</Text>
-        </View>
-      );
-    }
-
     const statusOptions = [
       { label: 'All', value: '' },
       { label: 'Scheduled', value: 'scheduled' },
@@ -2136,8 +2386,8 @@ const ProductsTab = ({
 
     return (
       <>
-        <View style={styles.auctionStatusFilters}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.auctionStatusFiltersContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.auctionFiltersScrollView}>
             {statusOptions.map((option) => (
               <TouchableOpacity
                 key={option.value || 'all'}
@@ -2158,13 +2408,23 @@ const ProductsTab = ({
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <TouchableOpacity style={styles.auctionRefreshBtn} onPress={onRefreshAuctions}>
-            <Ionicons name="refresh" size={16} color="#A68C7B" />
-            <Text style={styles.auctionRefreshBtnText}>Refresh</Text>
-          </TouchableOpacity>
+          <View style={styles.auctionRefreshContainer}>
+            <TouchableOpacity style={styles.auctionRefreshBtn} onPress={onRefreshAuctions}>
+              <Ionicons name="refresh" size={16} color="#A68C7B" />
+              <Text style={styles.auctionRefreshBtnText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {sellerAuctions.map((auction) => {
+        {sellerAuctions.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={80} color="#ccc" />
+            <Text style={styles.emptyTitle}>No Auctions Found</Text>
+            <Text style={styles.emptyText}>Create an auction schedule to manage it here</Text>
+          </View>
+        ) : (
+          <>
+            {sellerAuctions.map((auction) => {
           const statusKey = auction.status
             ? auction.status.charAt(0).toUpperCase() + auction.status.slice(1)
             : 'Pending';
@@ -2179,19 +2439,23 @@ const ProductsTab = ({
                     source={{ uri: item.primary_image || 'https://via.placeholder.com/80' }}
                     style={styles.auctionItemImage}
                   />
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.auctionCardTitle} numberOfLines={1}>
                       {item.title || 'Untitled Artwork'}
                     </Text>
-                    <Text style={styles.auctionCardSubtitle}>
+                    <Text style={styles.auctionCardSubtitle} numberOfLines={1}>
                       Start ₱{Number(auction.startPrice || 0).toLocaleString()} · Min Inc. ₱
                       {Number(auction.minIncrement || 0).toLocaleString()}
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.statusBadge, statusStyle]}>
-                  <Text style={styles.statusText}>{(auction.status || 'pending').toUpperCase()}</Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.auctionActionBtn}
+                  onPress={() => onOpenActionsModal?.(auction)}
+                >
+                  <Text style={styles.auctionActionBtnText}>Action</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#A68C7B" />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.auctionMetaRow}>
@@ -2206,18 +2470,26 @@ const ProductsTab = ({
                 </View>
               </View>
 
-              {auction.status === 'scheduled' && (
-                <TouchableOpacity
-                  style={styles.auctionActivateBtn}
-                  onPress={() => onActivateAuction?.(auction.auctionId || auction.id)}
-                >
-                  <Ionicons name="flash-outline" size={16} color="#fff" />
-                  <Text style={styles.auctionActivateBtnText}>Activate Now</Text>
-                </TouchableOpacity>
-              )}
+              <View style={styles.auctionCardActions}>
+                <View style={[styles.statusBadge, statusStyle]}>
+                  <Text style={styles.statusText}>{(auction.status || 'pending').toUpperCase()}</Text>
+                </View>
+                {auction.status === 'scheduled' && (
+                  <TouchableOpacity
+                    style={styles.auctionActivateBtn}
+                    onPress={() => onActivateAuction?.(auction.auctionId || auction.id)}
+                  >
+                    <Ionicons name="flash-outline" size={16} color="#fff" />
+                    <Text style={styles.auctionActivateBtnText}>Activate Now</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           );
         })}
+            </>
+          )
+        }
       </>
     );
   };
@@ -2697,6 +2969,25 @@ const ReturnsTab = ({ returns, loading, returnFilter, setReturnFilter, returnSta
         )}
         </>
       )}
+
+      {/* Auction Option Modal */}
+      <AuctionOptionModal
+        visible={actionsModalOpen}
+        onClose={closeActionsModal}
+        auction={actionsAuction}
+        onEditAuction={(auction) => {
+          // Handle edit auction
+          Alert.alert('Edit', 'Edit auction functionality');
+        }}
+        onActivateNow={activateAuctionNow}
+        onViewBids={(auction) => {
+          // Handle view bids
+          Alert.alert('View Bids', 'View bids functionality');
+        }}
+        onPause={pauseAuction}
+        onResume={resumeAuction}
+        onCancel={cancelAuction}
+      />
   </View>
   );
 };
@@ -3301,11 +3592,21 @@ overviewPeriodTextActive: {
   auctionTabTextActive: {
     color: '#A68C7B',
   },
+  auctionStatusFiltersContainer: {
+    marginBottom: 12,
+  },
   auctionStatusFilters: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  auctionFiltersScrollView: {
+    marginBottom: 8,
+  },
+  auctionRefreshContainer: {
+    alignItems: 'flex-end',
+    paddingRight: 0,
   },
   auctionStatusFilterBtn: {
     paddingHorizontal: 14,
@@ -3341,12 +3642,13 @@ overviewPeriodTextActive: {
     marginLeft: 6,
     color: '#A68C7B',
     fontWeight: '600',
+    fontSize: 12,
   },
   auctionCard: {
     backgroundColor: '#FAFAFA',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    padding: 10,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#F0E6DC',
   },
@@ -3354,7 +3656,7 @@ overviewPeriodTextActive: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   auctionHeaderLeft: {
     flexDirection: 'row',
@@ -3374,15 +3676,16 @@ overviewPeriodTextActive: {
   auctionMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: '#EEE',
-    marginTop: 6,
+    marginTop: 4,
+    marginBottom: 4,
   },
   auctionMetaItem: {
     flex: 1,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   auctionMetaLabel: {
     fontSize: 11,
@@ -4846,6 +5149,32 @@ overviewPeriodTextActive: {
   },
   bottomSpacer: {
     height: 30,
+  },
+
+  auctionCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 8,
+  },
+
+  auctionActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFF5EB',
+    borderWidth: 1,
+    borderColor: '#A68C7B',
+    gap: 6,
+  },
+
+  auctionActionBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#A68C7B',
   },
 });
 
