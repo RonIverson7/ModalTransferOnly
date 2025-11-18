@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {Modal, View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import {Modal, View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -15,6 +15,8 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
   const [adminNotes, setAdminNotes] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [receivedCondition, setReceivedCondition] = useState('');
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     if (visible && returnId) {
@@ -297,18 +299,19 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
   if (!returnDetails && !loading) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <KeyboardAvoidingView 
-          style={styles.modalContent}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-        >
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView 
+            style={styles.modalContent}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+          >
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Return Details</Text>
@@ -348,6 +351,26 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
                 </View>
               </View>
 
+              {returnDetails.evidenceImages && returnDetails.evidenceImages.length > 0 && (
+                <View style={styles.evidenceSection}>
+                  <Text style={styles.sectionTitle}>Evidence Images</Text>
+                  <View style={styles.evidenceGrid}>
+                    {returnDetails.evidenceImages.map((imageUrl, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.evidenceImageWrapper}
+                        onPress={() => {
+                          setCurrentImageIndex(index);
+                          setShowImageViewer(true);
+                        }}
+                      >
+                        <Image source={{ uri: imageUrl }} style={styles.evidenceImage} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
               {/* Divider */}
               <View style={styles.divider} />
 
@@ -356,19 +379,41 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
                 <Text style={styles.sectionTitle}>Conversation</Text>
                 <ScrollView style={styles.conversationContainer} showsVerticalScrollIndicator={true}>
                   {returnDetails.messages && returnDetails.messages.length > 0 ? (
-                    returnDetails.messages.map((msg, index) => (
-                      <View key={index} style={styles.conversationItem}>
-                        <View style={styles.messageHeader}>
-                          <Text style={styles.messageDate}>{formatDate(msg.createdAt)}</Text>
-                          {msg.isAdmin && (
-                            <View style={styles.adminBadge}>
-                              <Text style={styles.adminBadgeText}>Admin</Text>
+                    returnDetails.messages.map((msg, index) => {
+                      let senderName = 'User';
+
+                      if (msg.isAdmin) {
+                        senderName = 'Admin';
+                      } else if (msg.senderId === returnDetails.buyerId) {
+                        senderName = returnDetails.buyer?.username || 'Buyer';
+                      } else if (returnDetails.sellerProfile && msg.senderId === returnDetails.sellerProfile.userId) {
+                        senderName = returnDetails.sellerProfile?.shopName || 'Seller';
+                      }
+
+                      return (
+                        <View key={index} style={styles.conversationItem}>
+                          <View style={styles.messageHeader}>
+                            <View style={styles.messageMetaRow}>
+                              <Text style={styles.messageDate}>{formatDate(msg.createdAt)}</Text>
+                              <Text
+                                style={[
+                                  styles.messageSender,
+                                  msg.isAdmin && styles.messageSenderAdmin,
+                                ]}
+                              >
+                                {senderName}
+                              </Text>
                             </View>
-                          )}
+                            {msg.isAdmin && (
+                              <View style={styles.adminBadge}>
+                                <Text style={styles.adminBadgeText}>Admin</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.messageText}>{msg.message}</Text>
                         </View>
-                        <Text style={styles.messageText}>{msg.message}</Text>
-                      </View>
-                    ))
+                      );
+                    })
                   ) : (
                     <Text style={styles.noMessagesText}>No messages yet.</Text>
                   )}
@@ -500,7 +545,6 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
                 </View>
               )}
 
-
               {/* Help Note */}
               <View style={styles.noteContainer}>
                 <Ionicons name="information-circle" size={20} color="#FF9800" />
@@ -508,7 +552,7 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
                   If you have any questions about your return, please contact our customer support.
                 </Text>
               </View>
-              
+
               {/* Bottom Spacer */}
               <View style={styles.bottomSpacer} />
             </ScrollView>
@@ -517,6 +561,69 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
         </KeyboardAvoidingView>
       </View>
     </Modal>
+
+      {showImageViewer && returnDetails?.evidenceImages && returnDetails.evidenceImages.length > 0 && (
+        <Modal
+          visible={showImageViewer}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowImageViewer(false)}
+        >
+          <View style={styles.imageViewerOverlay}>
+            <TouchableOpacity
+              style={styles.imageViewerBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowImageViewer(false)}
+            >
+              <Image
+                source={{ uri: returnDetails.evidenceImages[currentImageIndex] }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+            <View style={styles.imageViewerControls}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (currentImageIndex > 0) {
+                    setCurrentImageIndex(currentImageIndex - 1);
+                  }
+                }}
+                disabled={currentImageIndex === 0}
+                style={[
+                  styles.imageViewerNavButton,
+                  currentImageIndex === 0 && styles.imageViewerNavButtonDisabled,
+                ]}
+              >
+                <Ionicons name="chevron-back" size={24} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.imageViewerIndex}>
+                {currentImageIndex + 1} / {returnDetails.evidenceImages.length}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (currentImageIndex < returnDetails.evidenceImages.length - 1) {
+                    setCurrentImageIndex(currentImageIndex + 1);
+                  }
+                }}
+                disabled={currentImageIndex === returnDetails.evidenceImages.length - 1}
+                style={[
+                  styles.imageViewerNavButton,
+                  currentImageIndex === returnDetails.evidenceImages.length - 1 && styles.imageViewerNavButtonDisabled,
+                ]}
+              >
+                <Ionicons name="chevron-forward" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.imageViewerClose}
+              onPress={() => setShowImageViewer(false)}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      )}
+    </>
   );
 };
 
@@ -713,6 +820,26 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
+  evidenceSection: {
+    marginBottom: 16,
+  },
+  evidenceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  evidenceImageWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  evidenceImage: {
+    width: '100%',
+    height: '100%',
+  },
   
   // Bottom spacer for proper spacing
   bottomSpacer: {
@@ -779,9 +906,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  messageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   messageDate: {
     fontSize: 12,
     color: '#999',
+  },
+  messageSender: {
+    fontSize: 12,
+    color: '#4b5563',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  messageSenderAdmin: {
+    color: '#9c7c3c',
   },
   adminBadge: {
     backgroundColor: '#2196F3',
@@ -950,6 +1090,47 @@ const styles = StyleSheet.create({
     color: '#C62828',
     fontSize: 14,
     fontWeight: '500',
+  },
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerBackdrop: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '80%',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+  },
+  imageViewerControls: {
+    position: 'absolute',
+    bottom: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  imageViewerNavButton: {
+    padding: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  imageViewerNavButtonDisabled: {
+    opacity: 0.5,
+  },
+  imageViewerIndex: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
