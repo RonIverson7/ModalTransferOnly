@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, Image, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRouter, useFocusEffect } from 'expo-router';
@@ -264,6 +264,28 @@ const MarketplaceScreen = () => {
     setMarketplaceItems(allItems.slice(startIndex, endIndex));
   }, [currentPage, allItems]);
 
+  // Derive if this is an auction and normalize product data
+  const openProduct = (product) => {
+    // Detect auction even when listingType is absent
+    const isAuction = (product?.listingType === 'auction')
+      || product?.isAuction
+      || typeof product?.currentBid === 'number'
+      || typeof product?.startingPrice === 'number'
+      || !!product?.endTime || !!product?.endAt;
+
+    const normalized = {
+      ...product,
+      listingType: isAuction ? 'auction' : (product?.listingType || 'buy-now')
+    };
+
+    setSelectedProduct(normalized);
+    if (normalized.listingType === 'auction') {
+      setShowAuctionModal(true);
+    } else {
+      setShowProductModal(true);
+    }
+  };
+
   // Buy Now -> go to checkout page with selected item & quantity (P2P migration)
   const handleAddToCart = async (item, quantityToAdd = 1) => {
     if (!userData) {
@@ -433,15 +455,7 @@ const MarketplaceScreen = () => {
                 <MarketplaceCard
                   key={item.marketItemId || item.id}
                   item={item}
-                  onPress={() => {
-                    setSelectedProduct(item);
-                    // Show auction modal for auction items, buy-now modal for others
-                    if (item.listingType === 'auction') {
-                      setShowAuctionModal(true);
-                    } else {
-                      setShowProductModal(true);
-                    }
-                  }}
+                  onPress={() => openProduct(item)}
                   onAddToCart={handleBuyNow}
                 />
               ))}
