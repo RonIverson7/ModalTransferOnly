@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../supabase/supabaseClient';
 
@@ -57,8 +57,8 @@ export default function AddAuctionProduct({
   const [showAuctionConditionDropdown, setShowAuctionConditionDropdown] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [isStartDatePickerVisible, setStartDatePickerVisibility] = useState(false);
+  const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
 
   const fetchExistingAuctionItems = async () => {
     try {
@@ -305,6 +305,40 @@ export default function AddAuctionProduct({
     setExistingAuctionItems([]);
     setShowAuctionConditionDropdown(false);
     onClose();
+  };
+
+  const handleStartDateConfirm = (date) => {
+    try {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+      setAuctionFormData(prev => ({ ...prev, startAt: formatted }));
+      setStartDatePickerVisibility(false);
+    } catch (e) {
+      console.error('Error formatting start date:', e);
+      Alert.alert('Error', 'Invalid date selected');
+      setStartDatePickerVisibility(false);
+    }
+  };
+
+  const handleEndDateConfirm = (date) => {
+    try {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+      setAuctionFormData(prev => ({ ...prev, endAt: formatted }));
+      setEndDatePickerVisibility(false);
+    } catch (e) {
+      console.error('Error formatting end date:', e);
+      Alert.alert('Error', 'Invalid date selected');
+      setEndDatePickerVisibility(false);
+    }
   };
 
   if (!visible) return null;
@@ -639,21 +673,7 @@ export default function AddAuctionProduct({
                   <Text style={externalStyles.inputLabel}>Start Time *</Text>
                   <TouchableOpacity
                     style={[externalStyles.datePickerButton, auctionErrors.startAt && externalStyles.inputError]}
-                    onPress={() => {
-                      let currentDate = new Date();
-                      if (auctionFormData.startAt) {
-                        try {
-                          const parsedDate = new Date(auctionFormData.startAt);
-                          if (!isNaN(parsedDate.getTime())) {
-                            currentDate = parsedDate;
-                          }
-                        } catch (e) {
-                          console.error('Error parsing start date:', e);
-                        }
-                      }
-                      setStartDate(currentDate);
-                      setShowStartDatePicker(true);
-                    }}
+                    onPress={() => setStartDatePickerVisibility(true)}
                   >
                     <Text style={[externalStyles.datePickerText, !auctionFormData.startAt && externalStyles.datePickerPlaceholder]}>
                       {auctionFormData.startAt
@@ -679,110 +699,21 @@ export default function AddAuctionProduct({
                     </Text>
                     <Ionicons name="calendar-outline" size={20} color="#A68C7B" />
                   </TouchableOpacity>
-                  {Platform.OS === 'ios' && showStartDatePicker && (
-                    <Modal
-                      visible={showStartDatePicker}
-                      transparent={true}
-                      animationType="slide"
-                      onRequestClose={() => setShowStartDatePicker(false)}
-                    >
-                      <View style={externalStyles.datePickerModalOverlay}>
-                        <View style={externalStyles.datePickerModalContent}>
-                          <View style={externalStyles.datePickerHeader}>
-                            <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                              <Text style={externalStyles.datePickerCancel}>Cancel</Text>
-                            </TouchableOpacity>
-                            <Text style={externalStyles.datePickerTitle}>Select Start Date & Time</Text>
-                            <TouchableOpacity onPress={() => {
-                              try {
-                                const year = startDate.getFullYear();
-                                const month = String(startDate.getMonth() + 1).padStart(2, '0');
-                                const day = String(startDate.getDate()).padStart(2, '0');
-                                const hours = String(startDate.getHours()).padStart(2, '0');
-                                const minutes = String(startDate.getMinutes()).padStart(2, '0');
-                                const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
-                                setAuctionFormData(prev => ({ ...prev, startAt: formatted }));
-                                setShowStartDatePicker(false);
-                              } catch (e) {
-                                console.error('Error formatting start date:', e);
-                                Alert.alert('Error', 'Invalid date selected');
-                              }
-                            }}>
-                              <Text style={externalStyles.datePickerDone}>Done</Text>
-                            </TouchableOpacity>
-                          </View>
-                          <DateTimePicker
-                            value={startDate}
-                            mode="datetime"
-                            display="spinner"
-                            onChange={(event, selectedDate) => {
-                              if (selectedDate) {
-                                setStartDate(selectedDate);
-                              }
-                            }}
-                            minimumDate={new Date()}
-                          />
-                        </View>
-                      </View>
-                    </Modal>
-                  )}
-                  {Platform.OS === 'android' && showStartDatePicker && (
-                    <DateTimePicker
-                      value={startDate}
-                      mode="datetime"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        setShowStartDatePicker(false);
-                        if (event.type === 'set' && selectedDate) {
-                          try {
-                            const year = selectedDate.getFullYear();
-                            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                            const day = String(selectedDate.getDate()).padStart(2, '0');
-                            const hours = String(selectedDate.getHours()).padStart(2, '0');
-                            const minutes = String(selectedDate.getMinutes()).padStart(2, '0');
-                            const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
-                            setAuctionFormData(prev => ({ ...prev, startAt: formatted }));
-                            setStartDate(selectedDate);
-                          } catch (e) {
-                            console.error('Error formatting start date:', e);
-                            Alert.alert('Error', 'Invalid date selected');
-                          }
-                        }
-                      }}
-                      minimumDate={new Date()}
-                    />
-                  )}
+                  <DateTimePickerModal
+                    isVisible={isStartDatePickerVisible}
+                    mode="datetime"
+                    onConfirm={handleStartDateConfirm}
+                    onCancel={() => setStartDatePickerVisibility(false)}
+                    date={auctionFormData.startAt ? new Date(auctionFormData.startAt) : new Date()}
+                    minimumDate={new Date()}
+                  />
                   {auctionErrors.startAt && (
                     <Text style={externalStyles.errorText}>{auctionErrors.startAt}</Text>
                   )}
                   <Text style={externalStyles.inputLabel}>End Time *</Text>
                   <TouchableOpacity
                     style={[externalStyles.datePickerButton, auctionErrors.endAt && externalStyles.inputError]}
-                    onPress={() => {
-                      let currentDate = new Date();
-                      if (auctionFormData.endAt) {
-                        try {
-                          const parsedDate = new Date(auctionFormData.endAt);
-                          if (!isNaN(parsedDate.getTime())) {
-                            currentDate = parsedDate;
-                          }
-                        } catch (e) {
-                          console.error('Error parsing end date:', e);
-                        }
-                      } else if (auctionFormData.startAt) {
-                        try {
-                          const parsedDate = new Date(auctionFormData.startAt);
-                          if (!isNaN(parsedDate.getTime())) {
-                            currentDate = new Date(parsedDate);
-                            currentDate.setDate(currentDate.getDate() + 1);
-                          }
-                        } catch (e) {
-                          console.error('Error parsing start date for end date:', e);
-                        }
-                      }
-                      setEndDate(currentDate);
-                      setShowEndDatePicker(true);
-                    }}
+                    onPress={() => setEndDatePickerVisibility(true)}
                   >
                     <Text style={[externalStyles.datePickerText, !auctionFormData.endAt && externalStyles.datePickerPlaceholder]}>
                       {auctionFormData.endAt
@@ -808,79 +739,14 @@ export default function AddAuctionProduct({
                     </Text>
                     <Ionicons name="calendar-outline" size={20} color="#A68C7B" />
                   </TouchableOpacity>
-                  {Platform.OS === 'ios' && showEndDatePicker && (
-                    <Modal
-                      visible={showEndDatePicker}
-                      transparent={true}
-                      animationType="slide"
-                      onRequestClose={() => setShowEndDatePicker(false)}
-                    >
-                      <View style={externalStyles.datePickerModalOverlay}>
-                        <View style={externalStyles.datePickerModalContent}>
-                          <View style={externalStyles.datePickerHeader}>
-                            <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                              <Text style={externalStyles.datePickerCancel}>Cancel</Text>
-                            </TouchableOpacity>
-                            <Text style={externalStyles.datePickerTitle}>Select End Date & Time</Text>
-                            <TouchableOpacity onPress={() => {
-                              try {
-                                const year = endDate.getFullYear();
-                                const month = String(endDate.getMonth() + 1).padStart(2, '0');
-                                const day = String(endDate.getDate()).padStart(2, '0');
-                                const hours = String(endDate.getHours()).padStart(2, '0');
-                                const minutes = String(endDate.getMinutes()).padStart(2, '0');
-                                const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
-                                setAuctionFormData(prev => ({ ...prev, endAt: formatted }));
-                                setShowEndDatePicker(false);
-                              } catch (e) {
-                                console.error('Error formatting end date:', e);
-                                Alert.alert('Error', 'Invalid date selected');
-                              }
-                            }}>
-                              <Text style={externalStyles.datePickerDone}>Done</Text>
-                            </TouchableOpacity>
-                          </View>
-                          <DateTimePicker
-                            value={endDate}
-                            mode="datetime"
-                            display="spinner"
-                            onChange={(event, selectedDate) => {
-                              if (selectedDate) {
-                                setEndDate(selectedDate);
-                              }
-                            }}
-                            minimumDate={auctionFormData.startAt ? new Date(auctionFormData.startAt) : new Date()}
-                          />
-                        </View>
-                      </View>
-                    </Modal>
-                  )}
-                  {Platform.OS === 'android' && showEndDatePicker && (
-                    <DateTimePicker
-                      value={endDate}
-                      mode="datetime"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        setShowEndDatePicker(false);
-                        if (event.type === 'set' && selectedDate) {
-                          try {
-                            const year = selectedDate.getFullYear();
-                            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                            const day = String(selectedDate.getDate()).padStart(2, '0');
-                            const hours = String(selectedDate.getHours()).padStart(2, '0');
-                            const minutes = String(selectedDate.getMinutes()).padStart(2, '0');
-                            const formatted = `${year}-${month}-${day}T${hours}:${minutes}`;
-                            setAuctionFormData(prev => ({ ...prev, endAt: formatted }));
-                            setEndDate(selectedDate);
-                          } catch (e) {
-                            console.error('Error formatting end date:', e);
-                            Alert.alert('Error', 'Invalid date selected');
-                          }
-                        }
-                      }}
-                      minimumDate={auctionFormData.startAt ? new Date(auctionFormData.startAt) : new Date()}
-                    />
-                  )}
+                  <DateTimePickerModal
+                    isVisible={isEndDatePickerVisible}
+                    mode="datetime"
+                    onConfirm={handleEndDateConfirm}
+                    onCancel={() => setEndDatePickerVisibility(false)}
+                    date={auctionFormData.endAt ? new Date(auctionFormData.endAt) : (auctionFormData.startAt ? new Date(new Date(auctionFormData.startAt).getTime() + 24*60*60*1000) : new Date())}
+                    minimumDate={auctionFormData.startAt ? new Date(auctionFormData.startAt) : new Date()}
+                  />
                   {auctionErrors.endAt && (
                     <Text style={externalStyles.errorText}>{auctionErrors.endAt}</Text>
                   )}
