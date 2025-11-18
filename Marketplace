@@ -44,6 +44,7 @@ const MarketplaceScreen = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showAuctionModal, setShowAuctionModal] = useState(false);
+  const [sellerProfileId, setSellerProfileId] = useState(null);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,7 +87,25 @@ const MarketplaceScreen = () => {
       const { data } = await supabase.auth.getSession();
       const at = data?.session?.access_token || '';
       const rt = data?.session?.refresh_token || '';
-      
+
+      let currentSellerProfileId = null;
+      try {
+        const sellerRes = await fetch(`${API_BASE}/marketplace/seller/status`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { Cookie: `access_token=${at}; refresh_token=${rt}` },
+        });
+        if (sellerRes.ok) {
+          const sellerJson = await sellerRes.json();
+          if (sellerJson?.isSeller && sellerJson?.sellerProfile?.sellerProfileId) {
+            currentSellerProfileId = sellerJson.sellerProfile.sellerProfileId;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch seller status for marketplace:', e);
+      }
+      setSellerProfileId(currentSellerProfileId);
+
       const response = await fetch(`${API_BASE}/marketplace/items`, {
         method: 'GET',
         credentials: 'include',
@@ -154,6 +173,7 @@ const MarketplaceScreen = () => {
                 id: a.auctionId || a.id,
                 marketItemId: a.auctionId || a.id,
                 sellerUserId,
+                sellerProfileId: a.sellerProfileId,
                 title,
                 description: aItem?.description || a.description || '',
                 primary_image: primary,
@@ -470,6 +490,7 @@ const MarketplaceScreen = () => {
                   item={item}
                   onPress={() => openProduct(item)}
                   onAddToCart={handleBuyNow}
+                  currentSellerProfileId={sellerProfileId}
                 />
               ))}
             </View>
@@ -808,7 +829,7 @@ const MarketplaceScreen = () => {
 };
 
 // Marketplace Card Component
-const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
+const MarketplaceCard = ({ item, onPress, onAddToCart, currentSellerProfileId }) => {
   const { userData } = useUser();
 
   const getTimeRemaining = (endTime) => {
@@ -852,6 +873,11 @@ const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
     item.seller_name ||
     item.sellerName;
 
+  const itemSellerProfileId =
+    item.sellerProfileId ||
+    item.sellerProfiles?.sellerProfileId ||
+    item.seller?.sellerProfileId;
+
   const isOwnById =
     !!currentUserId &&
     !!ownerId &&
@@ -862,7 +888,12 @@ const MarketplaceCard = ({ item, onPress, onAddToCart }) => {
     !!currentShopName &&
     sellerName.toString().trim().toLowerCase() === currentShopName.toString().trim().toLowerCase();
 
-  const isOwnListing = isOwnById || isOwnByName;
+  const isOwnBySellerProfile =
+    !!currentSellerProfileId &&
+    !!itemSellerProfileId &&
+    String(currentSellerProfileId) === String(itemSellerProfileId);
+
+  const isOwnListing = isOwnById || isOwnByName || isOwnBySellerProfile;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
