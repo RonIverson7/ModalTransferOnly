@@ -1763,15 +1763,6 @@ const handleDeleteProduct = (product) => {
                       <Text style={styles.errorText}>Failed to load return details</Text>
                     </View>
                   )}
-                  {/* Modal Footer */}
-                  <View style={styles.modalFooter}>
-                    <View style={styles.footerContent}>
-                      <Ionicons name="information-circle" size={20} color="#FF9800" />
-                      <Text style={styles.footerText}>
-                        If you have any questions about this return, please contact our customer support.
-                      </Text>
-                    </View>
-                  </View>
                   {/* Bottom Spacer */}
                   <View style={styles.bottomSpacer} />
                 </ScrollView>
@@ -2969,26 +2960,7 @@ const ReturnsTab = ({ returns, loading, returnFilter, setReturnFilter, returnSta
         )}
         </>
       )}
-
-      {/* Auction Option Modal */}
-      <AuctionOptionModal
-        visible={actionsModalOpen}
-        onClose={closeActionsModal}
-        auction={actionsAuction}
-        onEditAuction={(auction) => {
-          // Handle edit auction
-          Alert.alert('Edit', 'Edit auction functionality');
-        }}
-        onActivateNow={activateAuctionNow}
-        onViewBids={(auction) => {
-          // Handle view bids
-          Alert.alert('View Bids', 'View bids functionality');
-        }}
-        onPause={pauseAuction}
-        onResume={resumeAuction}
-        onCancel={cancelAuction}
-      />
-  </View>
+    </View>
   );
 };
 
