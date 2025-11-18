@@ -18,8 +18,121 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../supabase/supabaseClient';
+import EditAuctionItemModal from './EditAuctionItemModal';
 
 const API_BASE = "http://192.168.100.87:3000/api";
+
+const styles = StyleSheet.create({
+  productItemContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    position: 'relative',
+  },
+  productImageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginRight: 16,
+    backgroundColor: '#f8f9fa',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  productInfoContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  productHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  productTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#A68C7B',
+    marginBottom: 8,
+  },
+  stockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stockText: {
+    fontSize: 13,
+    color: '#666',
+    marginRight: 12,
+    fontWeight: '500',
+  },
+  lowStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  lowStockText: {
+    fontSize: 12,
+    color: '#FF9800',
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  productActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  deleteButton: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#FFCDD2',
+  },
+  selectButton: {
+    backgroundColor: '#A68C7B',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});
 
 export default function AddAuctionProduct({
   visible,
@@ -59,9 +172,11 @@ export default function AddAuctionProduct({
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isStartDatePickerVisible, setStartDatePickerVisibility] = useState(false);
   const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchExistingAuctionItems = async () => {
-    try {
+    try { 
       setLoadingAuctionItems(true);
       const { data } = await supabase.auth.getSession();
       const at = data?.session?.access_token || '';
@@ -99,6 +214,60 @@ export default function AddAuctionProduct({
   const handleSelectExistingAuctionItem = (item) => {
     setAuctionItemId(item.auctionItemId);
     setAuctionStep(2);
+  };
+
+  const handleEditItem = (item, e) => {
+    e.stopPropagation();
+    setEditingItem(item);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteItem = async (itemId, e) => {
+    e.stopPropagation();
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await supabase.auth.getSession();
+              const at = data?.session?.access_token || '';
+              const rt = data?.session?.refresh_token || '';
+              const response = await fetch(`${API_BASE}/auctions/items/${itemId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                  Cookie: `access_token=${at}; refresh_token=${rt}`,
+                  Authorization: `Bearer ${at}`,
+                },
+              });
+              const result = await response.json();
+              if (response.ok && result.success) {
+                setExistingAuctionItems(existingAuctionItems.filter(item => item.auctionItemId !== itemId));
+                Alert.alert('Success', 'Item deleted successfully');
+              } else {
+                Alert.alert('Error', result.error || 'Failed to delete item');
+              }
+            } catch (error) {
+              console.error('Error deleting item:', error);
+              Alert.alert('Error', 'Failed to delete item');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEditSuccess = (updatedItem) => {
+    // Update the item in the list
+    setExistingAuctionItems(existingAuctionItems.map(item =>
+      item.auctionItemId === updatedItem.auctionItemId ? updatedItem : item
+    ));
+    setIsEditModalOpen(false);
   };
 
   const pickAuctionImages = async () => {
@@ -344,6 +513,7 @@ export default function AddAuctionProduct({
   if (!visible) return null;
 
   return (
+    <>
     <Modal
       visible={visible}
       animationType="slide"
@@ -424,25 +594,57 @@ export default function AddAuctionProduct({
                       <Text style={externalStyles.emptyStateText}>No items found. Create a new item instead.</Text>
                     </View>
                   ) : (
-                    <View style={externalStyles.itemsGrid}>
+                    <ScrollView 
+                      style={{ flex: 1, padding: 16 }}
+                      showsVerticalScrollIndicator={false}
+                      overScrollMode="never"
+                      decelerationRate="normal"
+                      scrollEventThrottle={16}
+                    >
                       {existingAuctionItems.map((item) => (
-                        <TouchableOpacity
-                          key={item.auctionItemId}
-                          style={externalStyles.itemCard}
-                          onPress={() => handleSelectExistingAuctionItem(item)}
-                        >
-                          <Image
-                            source={{ uri: item.primary_image || 'https://via.placeholder.com/150' }}
-                            style={externalStyles.itemCardImage}
-                          />
-                          <View style={externalStyles.itemCardContent}>
-                            <Text style={externalStyles.itemCardTitle} numberOfLines={2}>{item.title}</Text>
-                            <Text style={externalStyles.itemCardMeta}>{item.medium}</Text>
-                            <Text style={externalStyles.itemCardMeta}>{item.dimensions}</Text>
+                        <View key={item.auctionItemId} style={styles.productItemContainer}>
+                          <View style={{ flexDirection: 'row', flex: 1 }}>
+                            <View style={styles.productImageContainer}>
+                              <Image
+                                source={{ uri: item.primary_image || 'https://via.placeholder.com/150' }}
+                                style={styles.productImage}
+                                resizeMode="cover"
+                              />
+                            </View>
+                            <View style={styles.productInfoContainer}>
+                              <View>
+                                <Text style={styles.productTitle} numberOfLines={1}>
+                                  {item.title}
+                                </Text>
+                                <Text style={[styles.productPrice, { marginBottom: 8 }]}>
+                                  ₱{item.price ? parseFloat(item.price).toFixed(2) : '0.00'}
+                                </Text>
+                              </View>
+                              <View style={styles.productActions}>
+                                <TouchableOpacity 
+                                  style={[styles.actionButton, { backgroundColor: '#FFF5EB', borderColor: '#FFE0B2' }]}
+                                  onPress={() => handleSelectExistingAuctionItem(item)}
+                                >
+                                  <Ionicons name="checkmark" size={18} color="#A68C7B" />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={styles.actionButton}
+                                  onPress={(e) => handleEditItem(item, e)}
+                                >
+                                  <Ionicons name="create-outline" size={16} color="#A68C7B" />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={[styles.actionButton, styles.deleteButton]}
+                                  onPress={(e) => handleDeleteItem(item.auctionItemId, e)}
+                                >
+                                  <Ionicons name="trash-outline" size={16} color="#F44336" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
                           </View>
-                        </TouchableOpacity>
+                        </View>
                       ))}
-                    </View>
+                    </ScrollView>
                   )}
                   {auctionErrors.submit && (
                     <View style={externalStyles.errorContainer}>
@@ -779,7 +981,7 @@ export default function AddAuctionProduct({
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text style={externalStyles.modalBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
-                      Next: Auction Settings
+                      Next
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -804,6 +1006,16 @@ export default function AddAuctionProduct({
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </Modal>
+
+    {/* Edit Item Modal */}
+    <EditAuctionItemModal
+      isOpen={isEditModalOpen}
+      onClose={() => setIsEditModalOpen(false)}
+      item={editingItem}
+      onSuccess={handleEditSuccess}
+      styles={externalStyles}
+    />
+    </>
   );
 }
 
