@@ -377,7 +377,11 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
               {/* Conversation */}
               <View style={styles.conversationSection}>
                 <Text style={styles.sectionTitle}>Conversation</Text>
-                <ScrollView style={styles.conversationContainer} showsVerticalScrollIndicator={true}>
+                <ScrollView
+                  style={styles.conversationContainer}
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                >
                   {returnDetails.messages && returnDetails.messages.length > 0 ? (
                     returnDetails.messages.map((msg, index) => {
                       let senderName = 'User';
@@ -581,39 +585,6 @@ const ReturnDetailsModal = ({ visible, onClose, returnId, role = 'buyer' }) => {
                 resizeMode="contain"
               />
             </TouchableOpacity>
-            <View style={styles.imageViewerControls}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (currentImageIndex > 0) {
-                    setCurrentImageIndex(currentImageIndex - 1);
-                  }
-                }}
-                disabled={currentImageIndex === 0}
-                style={[
-                  styles.imageViewerNavButton,
-                  currentImageIndex === 0 && styles.imageViewerNavButtonDisabled,
-                ]}
-              >
-                <Ionicons name="chevron-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.imageViewerIndex}>
-                {currentImageIndex + 1} / {returnDetails.evidenceImages.length}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  if (currentImageIndex < returnDetails.evidenceImages.length - 1) {
-                    setCurrentImageIndex(currentImageIndex + 1);
-                  }
-                }}
-                disabled={currentImageIndex === returnDetails.evidenceImages.length - 1}
-                style={[
-                  styles.imageViewerNavButton,
-                  currentImageIndex === returnDetails.evidenceImages.length - 1 && styles.imageViewerNavButtonDisabled,
-                ]}
-              >
-                <Ionicons name="chevron-forward" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
             <TouchableOpacity
               style={styles.imageViewerClose}
               onPress={() => setShowImageViewer(false)}
