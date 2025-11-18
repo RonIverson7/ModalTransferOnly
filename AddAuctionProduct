@@ -961,47 +961,49 @@ export default function AddAuctionProduct({
               )}
             </ScrollView>
 
-            <View style={externalStyles.modalFooter}>
-              <TouchableOpacity
-                style={[externalStyles.modalBtn, externalStyles.modalBtnSecondary]}
-                onPress={auctionStep === 0 ? handleCloseAuctionModal : () => setAuctionStep(auctionStep - 1)}
-                disabled={isSubmittingAuction}
-              >
-                <Text style={externalStyles.modalBtnSecondaryText} numberOfLines={1}>
-                  {auctionStep === 0 ? 'Cancel' : 'Back'}
-                </Text>
-              </TouchableOpacity>
-              {auctionStep === 1 && auctionItemChoice === 'create' && (
+            {auctionStep > 0 && (
+              <View style={externalStyles.modalFooter}>
                 <TouchableOpacity
-                  style={[externalStyles.modalBtn, externalStyles.modalBtnPrimary, isSubmittingAuction && externalStyles.modalBtnDisabled]}
-                  onPress={submitAuctionStep1}
+                  style={[externalStyles.modalBtn, externalStyles.modalBtnSecondary]}
+                  onPress={() => setAuctionStep(auctionStep - 1)}
                   disabled={isSubmittingAuction}
                 >
-                  {isSubmittingAuction ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={externalStyles.modalBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
-                      Next
-                    </Text>
-                  )}
+                  <Text style={externalStyles.modalBtnSecondaryText} numberOfLines={1}>
+                    Back
+                  </Text>
                 </TouchableOpacity>
-              )}
-              {auctionStep === 2 && (
-                <TouchableOpacity
-                  style={[externalStyles.modalBtn, externalStyles.modalBtnPrimary, isSubmittingAuction && externalStyles.modalBtnDisabled]}
-                  onPress={submitAuctionStep2}
-                  disabled={isSubmittingAuction}
-                >
-                  {isSubmittingAuction ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={externalStyles.modalBtnPrimaryText} numberOfLines={1}>
-                      Create Auction
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
+                {auctionStep === 1 && auctionItemChoice === 'create' && (
+                  <TouchableOpacity
+                    style={[externalStyles.modalBtn, externalStyles.modalBtnPrimary, isSubmittingAuction && externalStyles.modalBtnDisabled]}
+                    onPress={submitAuctionStep1}
+                    disabled={isSubmittingAuction}
+                  >
+                    {isSubmittingAuction ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={externalStyles.modalBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
+                        Next
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                {auctionStep === 2 && (
+                  <TouchableOpacity
+                    style={[externalStyles.modalBtn, externalStyles.modalBtnPrimary, isSubmittingAuction && externalStyles.modalBtnDisabled]}
+                    onPress={submitAuctionStep2}
+                    disabled={isSubmittingAuction}
+                  >
+                    {isSubmittingAuction ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={externalStyles.modalBtnPrimaryText} numberOfLines={1}>
+                        Create Auction
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       </KeyboardAvoidingView>
