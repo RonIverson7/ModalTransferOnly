@@ -205,7 +205,12 @@ export default function AddMarketProduct({
             style={externalStyles.modalContent}
           >
             <View style={externalStyles.modalHeader}>
-              <Text style={externalStyles.modalTitle}>Add New Product</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={externalStyles.modalTitle}>Add New Product</Text>
+                <Text style={{ fontSize: 14, color: '#7A6A58', marginTop: 4 }}>
+                  List a new product in your marketplace
+                </Text>
+              </View>
               <TouchableOpacity onPress={handleCloseModal}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
@@ -224,7 +229,7 @@ export default function AddMarketProduct({
               decelerationRate="normal"
               directionalLockEnabled={false}
             >
-              <Text style={externalStyles.sectionHeader}>Product Images</Text>
+              <Text style={[externalStyles.sectionHeader, { marginTop: -4 }]}>Product Images</Text>
               <Text style={externalStyles.hintText}>Support: JPG, PNG up to 10MB • Maximum 10 images • First image will be primary</Text>
 
               <ScrollView
