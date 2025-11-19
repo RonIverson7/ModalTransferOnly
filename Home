@@ -1309,7 +1309,8 @@ const HomeScreen = () => {
         data={filteredData}
         keyExtractor={(item) => `${item.itemType}-${item.id || item.eventId}`}
         renderItem={({ item }) => item.itemType === 'event' ? renderEvent({ item }) : renderPost({ item })}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 5 }}
+
         onScroll={() => setMenuVisiblePostId(null)}
         scrollEventThrottle={16}
         refreshControl={
@@ -2161,8 +2162,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 20,
     marginHorizontal: 20,
-    marginTop: 15,
-    marginBottom: 20,
+    marginTop: 14,
+    marginBottom: 0,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2177,8 +2178,9 @@ const styles = StyleSheet.create({
   endOfFeed: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 30,
+    paddingVertical: 10,
     paddingHorizontal: 20,
+    marginBottom: 8,
   },
   endOfFeedText: {
     fontSize: 14,
