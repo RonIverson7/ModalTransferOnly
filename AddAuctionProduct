@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -141,6 +141,7 @@ export default function AddAuctionProduct({
   styles: externalStyles
 }) {
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef(null);
   const [auctionStep, setAuctionStep] = useState(0);
   const [auctionItemChoice, setAuctionItemChoice] = useState(null);
   const [existingAuctionItems, setExistingAuctionItems] = useState([]);
@@ -174,6 +175,13 @@ export default function AddAuctionProduct({
   const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Scroll to top when auction step changes
+  useEffect(() => {
+    if (scrollViewRef.current && auctionStep > 0) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  }, [auctionStep]);
 
   const fetchExistingAuctionItems = async () => {
     try { 
@@ -546,6 +554,7 @@ export default function AddAuctionProduct({
             </View>
 
             <ScrollView
+              ref={scrollViewRef}
               style={externalStyles.modalBody}
               contentContainerStyle={[externalStyles.modalBodyScroll, { paddingBottom: insets.bottom + 12 }]}
               keyboardShouldPersistTaps="handled"
