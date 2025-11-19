@@ -16,6 +16,24 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [userAddresses, setUserAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [pendingAddressId, setPendingAddressId] = useState('');
+  const [showAddressPicker, setShowAddressPicker] = useState(false);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressFormSubmitting, setAddressFormSubmitting] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [addressFormData, setAddressFormData] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    addressLine1: '',
+    addressLine2: '',
+    landmark: '',
+    region: '',
+    province: '',
+    cityMunicipality: '',
+    barangay: '',
+    postalCode: '',
+  });
   const [nowTs, setNowTs] = useState(Date.now());
   const { userData } = useUser();
 
@@ -120,21 +138,191 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
       if (!res.ok || json?.success === false) {
         setUserAddresses([]);
         setSelectedAddressId('');
+        setPendingAddressId('');
         return [];
       }
       const addresses = Array.isArray(json?.data) ? json.data : [];
       setUserAddresses(addresses);
-      setSelectedAddressId(prev => (
-        prev && addresses.some(a => a.userAddressId === prev)
-          ? prev
-          : (addresses.find(a => a.isDefault)?.userAddressId || (addresses[0]?.userAddressId || ''))
-      ));
+
+      const chooseId = (currentId) => {
+        if (currentId && addresses.some(a => a.userAddressId === currentId)) {
+          return currentId;
+        }
+        return (
+          addresses.find(a => a.isDefault)?.userAddressId ||
+          (addresses[0]?.userAddressId || '')
+        );
+      };
+
+      const nextSelectedId = chooseId(selectedAddressId);
+      setSelectedAddressId(nextSelectedId);
+      setPendingAddressId(prev => chooseId(prev || nextSelectedId));
+
       return addresses;
     } catch (e) {
       setUserAddresses([]);
       setSelectedAddressId('');
+      setPendingAddressId('');
       return [];
     }
+  };
+
+  const validateAddressForm = () => {
+    if (!addressFormData.fullName?.trim()) return 'Full name is required';
+    if (!addressFormData.phoneNumber?.trim()) return 'Phone number is required';
+    if (!addressFormData.addressLine1?.trim()) return 'Street address is required';
+    if (!addressFormData.cityMunicipality?.trim()) return 'City/Municipality is required';
+    if (!addressFormData.province?.trim()) return 'Province is required';
+    if (!addressFormData.postalCode?.trim()) return 'Postal code is required';
+    return '';
+  };
+
+  const openAddAddressForm = () => {
+    setEditingAddress(null);
+    setAddressFormData({
+      fullName: `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || '',
+      email: userData?.email || '',
+      phoneNumber: userData?.phoneNumber || '',
+      addressLine1: '',
+      addressLine2: '',
+      landmark: '',
+      region: '',
+      province: '',
+      cityMunicipality: '',
+      barangay: '',
+      postalCode: '',
+    });
+    setShowAddressPicker(false);
+    setShowAddressForm(true);
+  };
+
+  const openEditAddressForm = (addr) => {
+    if (!addr) return;
+    setEditingAddress(addr);
+    setAddressFormData({
+      fullName: addr.fullName || '',
+      email: userData?.email || '',
+      phoneNumber: addr.phoneNumber || '',
+      addressLine1: addr.addressLine1 || '',
+      addressLine2: addr.addressLine2 || '',
+      landmark: addr.landmark || '',
+      region: addr.regionName || '',
+      province: addr.provinceName || '',
+      cityMunicipality: addr.cityMunicipalityName || '',
+      barangay: addr.barangayName || '',
+      postalCode: String(addr.postalCode || ''),
+    });
+    setShowAddressPicker(false);
+    setShowAddressForm(true);
+  };
+
+  const closeAddressForm = () => {
+    setShowAddressForm(false);
+    setEditingAddress(null);
+    setAddressFormSubmitting(false);
+  };
+
+  const handleSaveAddress = async () => {
+    const error = validateAddressForm();
+    if (error) {
+      Alert.alert('Invalid Address', error);
+      return;
+    }
+
+    try {
+      setAddressFormSubmitting(true);
+      const { data } = await supabase.auth.getSession();
+      const at = data?.session?.access_token || '';
+      const rt = data?.session?.refresh_token || '';
+
+      const payload = {
+        fullName: (addressFormData.fullName || '').trim(),
+        email: (addressFormData.email || userData?.email || '').trim(),
+        phoneNumber: (addressFormData.phoneNumber || '').trim(),
+        addressLine1: (addressFormData.addressLine1 || '').trim(),
+        addressLine2: (addressFormData.addressLine2 || '').trim(),
+        landmark: (addressFormData.landmark || '').trim(),
+        regionName: (addressFormData.region || '').trim(),
+        provinceName: (addressFormData.province || '').trim(),
+        cityMunicipalityName: (addressFormData.cityMunicipality || '').trim(),
+        barangayName: (addressFormData.barangay || '').trim(),
+        postalCode: (addressFormData.postalCode || '').trim(),
+      };
+
+      const isEditing = !!(editingAddress && editingAddress.userAddressId);
+      const url = isEditing
+        ? `${API_BASE}/marketplace/addresses/${editingAddress.userAddressId}`
+        : `${API_BASE}/marketplace/addresses`;
+
+      const res = await fetch(url, {
+        method: isEditing ? 'PUT' : 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `access_token=${at}; refresh_token=${rt}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        const msg = json?.error || json?.message || 'Failed to save address';
+        Alert.alert('Error', msg);
+        return;
+      }
+
+      await fetchAddresses();
+      Alert.alert('Success', isEditing ? 'Address updated successfully' : 'Address added successfully');
+      closeAddressForm();
+      setShowAddressPicker(true);
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'Failed to save address');
+    } finally {
+      setAddressFormSubmitting(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addr) => {
+    if (!addr?.userAddressId) return;
+
+    Alert.alert(
+      'Delete Address',
+      'Delete this address? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await supabase.auth.getSession();
+              const at = data?.session?.access_token || '';
+              const rt = data?.session?.refresh_token || '';
+
+              const res = await fetch(`${API_BASE}/marketplace/addresses/${addr.userAddressId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Cookie: `access_token=${at}; refresh_token=${rt}`,
+                },
+              });
+
+              const json = await res.json().catch(() => ({}));
+              if (!res.ok || json?.success === false) {
+                const msg = json?.error || json?.message || 'Failed to delete address';
+                Alert.alert('Error', msg);
+                return;
+              }
+
+              await fetchAddresses();
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'Failed to delete address');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (!visible || !item) return null;
@@ -251,6 +439,7 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
   const displayDescription = isDescriptionExpanded 
     ? description 
     : description.substring(0, MAX_DESCRIPTION_LENGTH);
+  const selectedAddress = userAddresses.find(a => a.userAddressId === selectedAddressId) || null;
 
   return (
     <Modal
@@ -412,8 +601,18 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
                 <View>
                   <View style={[styles.shipOption, { paddingVertical: 12 }] }>
                     <Text style={styles.shipLabel}>Shipping Address</Text>
-                    <TouchableOpacity onPress={fetchAddresses}>
-                      <Text style={[styles.shipValue, { color: '#A68C7B', fontWeight: '600' }]}>Refresh</Text>
+                    <TouchableOpacity
+                      style={styles.manageAddressesButton}
+                      onPress={() => {
+                        // Open picker with a fresh address list and
+                        // highlight whatever is currently selected
+                        setPendingAddressId(selectedAddressId || '');
+                        setShowAddressPicker(true);
+                        fetchAddresses();
+                      }}
+                    >
+                      <Ionicons name="location-outline" size={14} color="#A68C7B" style={{ marginRight: 4 }} />
+                      <Text style={styles.manageAddressesButtonText}>Manage Addresses</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -421,42 +620,26 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
                     <View style={{ paddingVertical: 8 }}>
                       <Text style={styles.infoText}>No saved addresses found.</Text>
                     </View>
-                  ) : !userAddresses.find(a => a.userAddressId === selectedAddressId) ? (
+                  ) : !selectedAddress ? (
                     <View style={{ paddingVertical: 8 }}>
-                      <Text style={styles.infoText}>No address selected. Tap an address below to select.</Text>
+                      <Text style={styles.infoText}>No address selected. Tap Manage Addresses to choose one.</Text>
                     </View>
                   ) : (
                     <View style={[styles.addressCard, styles.addressCardSelected]}>
                       <Text style={styles.addressName}>
-                        {userAddresses.find(a => a.userAddressId === selectedAddressId)?.fullName}
+                        {selectedAddress.fullName}{selectedAddress.isDefault ? ' (Default)' : ''}
                       </Text>
                       <Text style={styles.addressLine}>
-                        {userAddresses.find(a => a.userAddressId === selectedAddressId)?.addressLine1}
+                        {selectedAddress.addressLine1}{selectedAddress.addressLine2 ? `, ${selectedAddress.addressLine2}` : ''}
                       </Text>
                       <Text style={styles.addressLine}>
-                        {(() => {
-                          const addr = userAddresses.find(a => a.userAddressId === selectedAddressId);
-                          return addr ? `${addr.barangayName}, ${addr.cityMunicipalityName}, ${addr.provinceName} ${addr.postalCode}` : '';
-                        })()}
+                        {selectedAddress.barangayName}, {selectedAddress.cityMunicipalityName}, {selectedAddress.provinceName} {selectedAddress.postalCode}
                       </Text>
                       <Text style={styles.addressPhone}>
-                        {userAddresses.find(a => a.userAddressId === selectedAddressId)?.phoneNumber}
+                        {selectedAddress.phoneNumber}
                       </Text>
                     </View>
                   )}
-
-                  {userAddresses.map(addr => (
-                    <TouchableOpacity
-                      key={addr.userAddressId}
-                      style={[styles.addressCard, selectedAddressId === addr.userAddressId && styles.addressCardSelected]}
-                      onPress={() => setSelectedAddressId(addr.userAddressId)}
-                    >
-                      <Text style={styles.addressName}>{addr.fullName}{addr.isDefault ? ' (Default)' : ''}</Text>
-                      <Text style={styles.addressLine}>{addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}</Text>
-                      <Text style={styles.addressLine}>{addr.barangayName}, {addr.cityMunicipalityName}, {addr.provinceName} {addr.postalCode}</Text>
-                      <Text style={styles.addressPhone}>{addr.phoneNumber}</Text>
-                    </TouchableOpacity>
-                  ))}
 
                   <View style={[styles.shipOption, { marginTop: 8 }]}>
                     <Text style={styles.shipLabel}>Standard Shipping</Text>
@@ -568,6 +751,249 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
               </View>
             )}
           </ScrollView>
+
+          {showAddressPicker && (
+            <View style={styles.addressPickerOverlay}>
+              <View style={styles.addressPickerContent}>
+                <View style={styles.addressPickerHeader}>
+                  <Text style={styles.addressPickerTitle}>Select Shipping Address</Text>
+                  <TouchableOpacity onPress={() => setShowAddressPicker(false)}>
+                    <Ionicons name="close" size={22} color="#333" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.addressPickerToolbar}>
+                  <Text style={styles.addressPickerSubtitle}>My Addresses</Text>
+                  <TouchableOpacity
+                    style={styles.addAddressButton}
+                    onPress={openAddAddressForm}
+                    disabled={addressFormSubmitting}
+                  >
+                    <Ionicons name="add" size={16} color="#A68C7B" style={{ marginRight: 4 }} />
+                    <Text style={styles.addAddressButtonText}>Add Address</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={styles.addressPickerList}
+                  contentContainerStyle={{ paddingBottom: 8 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {userAddresses.length === 0 ? (
+                    <View style={{ paddingVertical: 12 }}>
+                      <Text style={styles.infoText}>No saved addresses found.</Text>
+                    </View>
+                  ) : (
+                    userAddresses.map(addr => (
+                      <View
+                        key={addr.userAddressId}
+                        style={[
+                          styles.addressCard,
+                          pendingAddressId === addr.userAddressId && styles.addressCardSelected,
+                        ]}
+                      >
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Only update the temporary selection; the
+                            // real address is committed on the button below
+                            setPendingAddressId(addr.userAddressId);
+                          }}
+                        >
+                          <Text style={styles.addressName}>
+                            {addr.fullName}{addr.isDefault ? ' (Default)' : ''}
+                          </Text>
+                          <Text style={styles.addressLine}>
+                            {addr.addressLine1}{addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                          </Text>
+                          <Text style={styles.addressLine}>
+                            {addr.barangayName}, {addr.cityMunicipalityName}, {addr.provinceName} {addr.postalCode}
+                          </Text>
+                          <Text style={styles.addressPhone}>{addr.phoneNumber}</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.addressActionsRow}>
+                          <TouchableOpacity
+                            onPress={() => openEditAddressForm(addr)}
+                            style={{ marginRight: 12, padding: 4 }}
+                          >
+                            <Ionicons name="create-outline" size={18} color="#A68C7B" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteAddress(addr)}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#D32F2F" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.placeBidBtn, { marginTop: 4 }]}
+                  onPress={() => {
+                    if (!pendingAddressId) return;
+                    setSelectedAddressId(pendingAddressId);
+                    setShowAddressPicker(false);
+                  }}
+                  disabled={!pendingAddressId}
+                >
+                  <Text style={styles.placeBidBtnText}>Use Selected Address</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {showAddressForm && (
+            <Modal
+              visible={showAddressForm}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={closeAddressForm}
+            >
+              <View style={styles.addressFormOverlay}>
+                <View style={styles.addressFormContent}>
+                  <View style={styles.addressFormHeader}>
+                    <Text style={styles.addressFormTitle}>
+                      {editingAddress ? 'Edit Address' : 'Add New Address'}
+                    </Text>
+                    <TouchableOpacity onPress={closeAddressForm}>
+                      <Ionicons name="close" size={22} color="#333" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    style={styles.addressFormBody}
+                    contentContainerStyle={{ paddingBottom: 12 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={styles.addressFormLabel}>Full Name *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.fullName}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, fullName: text }))}
+                      placeholder="Juan Dela Cruz"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Phone Number *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.phoneNumber}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, phoneNumber: text }))}
+                      placeholder="09123456789"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Email</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.email}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, email: text }))}
+                      placeholder="juan@example.com"
+                      placeholderTextColor="#999"
+                      keyboardType="email-address"
+                    />
+
+                    <Text style={styles.addressFormLabel}>House/Unit, Street *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.addressLine1}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, addressLine1: text }))}
+                      placeholder="123 Main St, Unit 4B"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Subdivision/Village (Optional)</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.addressLine2}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, addressLine2: text }))}
+                      placeholder="Green Valley Subd."
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Landmark (Optional)</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.landmark}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, landmark: text }))}
+                      placeholder="Near ABC Store"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Region *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.region}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, region: text }))}
+                      placeholder="Region"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Province *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.province}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, province: text }))}
+                      placeholder="Province"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>City/Municipality *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.cityMunicipality}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, cityMunicipality: text }))}
+                      placeholder="City or Municipality"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Barangay *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.barangay}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, barangay: text }))}
+                      placeholder="Barangay"
+                      placeholderTextColor="#999"
+                    />
+
+                    <Text style={styles.addressFormLabel}>Postal Code *</Text>
+                    <TextInput
+                      style={styles.addressFormInput}
+                      value={addressFormData.postalCode}
+                      onChangeText={text => setAddressFormData(prev => ({ ...prev, postalCode: text }))}
+                      placeholder="1234"
+                      placeholderTextColor="#999"
+                      keyboardType="number-pad"
+                      maxLength={8}
+                    />
+                  </ScrollView>
+
+                  <View style={styles.addressFormActions}>
+                    <TouchableOpacity
+                      style={styles.addressFormCancelBtn}
+                      onPress={closeAddressForm}
+                      disabled={addressFormSubmitting}
+                    >
+                      <Text style={styles.addressFormCancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.addressFormSaveBtn}
+                      onPress={handleSaveAddress}
+                      disabled={addressFormSubmitting}
+                    >
+                      <Text style={styles.addressFormSaveBtnText}>
+                        {addressFormSubmitting ? 'Saving…' : 'Save Address'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
         </View>
       </View>
     </Modal>
@@ -785,6 +1211,21 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
+  manageAddressesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#A68C7B',
+    backgroundColor: '#FFF5EB',
+  },
+  manageAddressesButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A68C7B',
+  },
   bidSection: {
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -897,6 +1338,7 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     borderRadius: 8,
     padding: 10,
+    paddingRight: 44,
     marginBottom: 8,
     backgroundColor: '#fff',
   },
@@ -918,5 +1360,154 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 2,
+    marginBottom: 2,
+  },
+  addressPickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  addressPickerContent: {
+    width: '100%',
+    maxHeight: '75%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  addressPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressPickerTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  addressPickerToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressPickerSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  addressPickerList: {
+    marginTop: 4,
+  },
+  addAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#A68C7B',
+  },
+  addAddressButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A68C7B',
+  },
+  addressActionsRow: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  addressActionText: {
+    fontSize: 12,
+    color: '#A68C7B',
+    fontWeight: '500',
+  },
+  addressActionDeleteText: {
+    fontSize: 12,
+    color: '#D32F2F',
+    fontWeight: '500',
+  },
+  addressFormOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  addressFormContent: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  addressFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressFormTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  addressFormBody: {
+    marginTop: 4,
+  },
+  addressFormLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  addressFormInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#333',
+  },
+  addressFormActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+  },
+  addressFormCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#eee',
+    marginRight: 8,
+  },
+  addressFormCancelBtnText: {
+    fontSize: 13,
+    color: '#555',
+    fontWeight: '500',
+  },
+  addressFormSaveBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#A68C7B',
+  },
+  addressFormSaveBtnText: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: '600',
   },
 });
