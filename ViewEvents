@@ -298,6 +298,27 @@ const ViewEventsScreen = () => {
 
   const fmt = (dt) => new Date(dt).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const formatDetailedDate = (value) => {
+    try {
+      if (!value) return 'TBA';
+      const date = new Date(value);
+      const datePart = date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      const timePart = date.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      return `${datePart} at ${timePart}`;
+    } catch {
+      return String(value);
+    }
+  };
+
   const getEventStatus = () => {
     try {
       const now = new Date();
@@ -411,68 +432,86 @@ const ViewEventsScreen = () => {
             )}
           </View>
 
-          {/* Description Section */}
-          <View style={styles.textSection}>
+          {/* Details + Info Grid */}
+          <View style={styles.detailsWrapper}>
             {!!event?.details && (
-              <Text style={styles.description}>{event.details}</Text>
+              <View style={[styles.infoCard, { marginBottom: 16 }]}>
+                <Text style={styles.sectionHeading}>About this Event</Text>
+                <Text style={styles.sectionBody}>{event.details}</Text>
+              </View>
             )}
+
+            <View style={styles.infoGrid}>
+              {(Array.isArray(event?.activities) && event.activities.length > 0) && (
+                <View style={styles.infoCard}>
+                  <View style={styles.infoHeader}>
+                    <Ionicons name="color-palette-outline" size={18} color="#A68C7B" />
+                    <Text style={styles.sectionHeading}>Activities Include</Text>
+                  </View>
+                  <View style={styles.badgeGroup}>
+                    {event.activities.map((act, idx) => (
+                      <View key={`${act}-${idx}`} style={styles.badgePill}>
+                        <Text style={styles.badgePillText}>{act}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {(event?.admission || event?.admissionNote) && (
+                <View style={styles.infoCard}>
+                  <View style={styles.infoHeader}>
+                    <Ionicons name="pricetag-outline" size={18} color="#A68C7B" />
+                    <Text style={styles.sectionHeading}>Admission</Text>
+                  </View>
+                  {!!event?.admission && (
+                    <Text style={styles.sectionBody}>{event.admission}</Text>
+                  )}
+                  {!!event?.admissionNote && (
+                    <Text style={[styles.sectionBody, { color: Colors.textMuted, marginTop: 6 }]}>
+                      {event.admissionNote}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {(event?.venueName || event?.venueAddress) && (
+                <View style={styles.infoCard}>
+                  <View style={styles.infoHeader}>
+                    <Ionicons name="location-outline" size={18} color="#A68C7B" />
+                    <Text style={styles.sectionHeading}>Venue</Text>
+                  </View>
+                  {!!event?.venueName && (
+                    <Text style={styles.sectionBody}>{event.venueName}</Text>
+                  )}
+                  {!!event?.venueAddress && (
+                    <Text style={[styles.sectionBody, { color: Colors.textMuted, marginTop: 4 }]}>
+                      {event.venueAddress}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {(event?.startsAt || event?.endsAt || event?.start || event?.end) && (
+                <View style={styles.infoCard}>
+                  <View style={styles.infoHeader}>
+                    <Ionicons name="calendar-outline" size={18} color="#A68C7B" />
+                    <Text style={styles.sectionHeading}>Date & Time</Text>
+                  </View>
+                  {!!(event?.startsAt || event?.start) && (
+                    <Text style={styles.sectionBody}>
+                      Starts: {formatDetailedDate(event.startsAt || event.start)}
+                    </Text>
+                  )}
+                  {!!(event?.endsAt || event?.end) && (
+                    <Text style={[styles.sectionBody, { marginTop: 6 }]}>
+                      Ends: {formatDetailedDate(event.endsAt || event.end)}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
           </View>
-
-          {/* Activities Section */}
-          <View style={styles.activitiesSection}>
-            <Text style={styles.activitiesTitle}>
-              <Ionicons name="color-palette-outline" size={20} color="#333" />{' '}Activities Include:
-            </Text>
-            {(Array.isArray(event?.activities) ? event.activities : [])
-              .map((act, idx) => (
-                <Text style={styles.activityItem} key={idx}>• {act}</Text>
-              ))}
-          </View>
-
-          {/* Admission */}
-          {(event?.admission || event?.admissionNote) && (
-            <View style={styles.textSection}>
-              <Text style={styles.activitiesTitle}>
-                <Ionicons name="pricetag-outline" size={20} color="#333" />{' '}Admission
-              </Text>
-              {!!event?.admission && (
-                <Text style={styles.description}>{event.admission}</Text>
-              )}
-              {!!event?.admissionNote && (
-                <Text style={styles.description}>{event.admissionNote}</Text>
-              )}
-            </View>
-          )}
-
-          {/* Venue */}
-          {(event?.venueName || event?.venueAddress) && (
-            <View style={styles.textSection}>
-              <Text style={styles.activitiesTitle}>
-                <Ionicons name="location-outline" size={20} color="#333" />{' '}Venue
-              </Text>
-              {!!event?.venueName && (
-                <Text style={styles.description}>{event.venueName}</Text>
-              )}
-              {!!event?.venueAddress && (
-                <Text style={styles.description}>{event.venueAddress}</Text>
-              )}
-            </View>
-          )}
-
-          {/* Date & Time */}
-          {(event?.startsAt || event?.endsAt || event?.start || event?.end) && (
-            <View style={styles.textSection}>
-              <Text style={styles.activitiesTitle}>
-                <Ionicons name="calendar-outline" size={20} color="#333" />{' '}Date & Time
-              </Text>
-              {!!(event?.startsAt || event?.start) && (
-                <Text style={styles.description}>Start: {new Date(event.startsAt || event.start).toLocaleString()}</Text>
-              )}
-              {!!(event?.endsAt || event?.end) && (
-                <Text style={styles.description}>End: {new Date(event.endsAt || event.end).toLocaleString()}</Text>
-              )}
-            </View>
-          )}
         </ScrollView>
       )}
 
@@ -679,29 +718,58 @@ const styles = StyleSheet.create({
   upcomingBadgeText: {
     color: '#fff',
   },
-  textSection: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: Colors.textSecondary,
-    marginBottom: 15,
-  },
-  activitiesSection: {
+  detailsWrapper: {
     paddingHorizontal: 20,
     marginTop: 10,
-    marginBottom: 50,
+    marginBottom: 40,
   },
-  activitiesTitle: {
-    ...Typography.heading3,
+  infoGrid: {
+    flexDirection: 'column',
+    gap: 14,
+  },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ece4da',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sectionHeading: {
+    ...Typography.heading4,
     color: Colors.textPrimary,
-    marginBottom: 10,
   },
-  activityItem: {
+  sectionBody: {
     ...Typography.bodyLarge,
     color: Colors.textSecondary,
-    marginBottom: 5,
+    lineHeight: 20,
+  },
+  badgeGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  badgePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFF5EB',
+    borderWidth: 1,
+    borderColor: '#F0D9C2',
+  },
+  badgePillText: {
+    ...Typography.label,
+    color: Colors.textPrimary,
   },
   // Full-screen image modal
   fullScreenContainer: {
