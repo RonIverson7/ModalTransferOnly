@@ -23,6 +23,14 @@ import EditAuctionItemModal from './EditAuctionItemModal';
 const API_BASE = "http://192.168.100.87:3000/api";
 
 const styles = StyleSheet.create({
+  stepSubtitle: {
+    fontSize: 14,
+    color: '#7A6A58',
+    fontWeight: '500',
+    marginTop: 4,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
   productItemContainer: {
     flexDirection: 'row',
     padding: 16,
@@ -543,11 +551,24 @@ export default function AddAuctionProduct({
             onMoveShouldSetResponder={() => false}
           >
             <View style={externalStyles.modalHeader}>
-              <Text style={externalStyles.modalTitle}>
-                {auctionStep === 0 ? 'Create Auction' :
-                  auctionStep === 1 ? (auctionItemChoice === 'create' ? 'Add Auction - Step 1: Item Details' : 'Add Auction - Step 1: Select Item') :
-                    'Add Auction - Step 2: Auction Settings'}
-              </Text>
+              {auctionStep === 0 ? (
+                <Text style={externalStyles.modalTitle}>Create Auction</Text>
+              ) : auctionStep === 1 && auctionItemChoice === 'existing' ? (
+                <View style={{ flex: 1 }}>
+                  <Text style={externalStyles.modalTitle}>Add Auction - Step 1: Select Item</Text>
+                  <Text style={[styles.stepSubtitle, { marginTop: 4, marginBottom: 0, paddingHorizontal: 0 }]}>Select an existing item</Text>
+                </View>
+              ) : auctionStep === 1 && auctionItemChoice === 'create' ? (
+                <View style={{ flex: 1 }}>
+                  <Text style={externalStyles.modalTitle}>Add Auction - Step 1: Item Details</Text>
+                  <Text style={[styles.stepSubtitle, { marginTop: 4, marginBottom: 0, paddingHorizontal: 0 }]}>Describe your artwork</Text>
+                </View>
+              ) : (
+                <View style={{ flex: 1 }}>
+                  <Text style={externalStyles.modalTitle}>Add Auction - Step 2: Auction Settings</Text>
+                  <Text style={[styles.stepSubtitle, { marginTop: 4, marginBottom: 0, paddingHorizontal: 0 }]}>Set auction parameters</Text>
+                </View>
+              )}
               <TouchableOpacity onPress={handleCloseAuctionModal}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
@@ -603,57 +624,63 @@ export default function AddAuctionProduct({
                       <Text style={externalStyles.emptyStateText}>No items found. Create a new item instead.</Text>
                     </View>
                   ) : (
-                    <ScrollView 
-                      style={{ flex: 1, padding: 16 }}
-                      showsVerticalScrollIndicator={false}
-                      overScrollMode="never"
-                      decelerationRate="normal"
-                      scrollEventThrottle={16}
-                    >
-                      {existingAuctionItems.map((item) => (
-                        <View key={item.auctionItemId} style={styles.productItemContainer}>
-                          <View style={{ flexDirection: 'row', flex: 1 }}>
-                            <View style={styles.productImageContainer}>
-                              <Image
-                                source={{ uri: item.primary_image || 'https://via.placeholder.com/150' }}
-                                style={styles.productImage}
-                                resizeMode="cover"
-                              />
-                            </View>
-                            <View style={styles.productInfoContainer}>
-                              <View>
-                                <Text style={styles.productTitle} numberOfLines={1}>
-                                  {item.title}
-                                </Text>
-                                <Text style={[styles.productPrice, { marginBottom: 8 }]}>
-                                  ₱{item.price ? parseFloat(item.price).toFixed(2) : '0.00'}
-                                </Text>
+                    <>
+                      <ScrollView 
+                        style={{ flex: 1, paddingHorizontal: 16 }}
+                        showsVerticalScrollIndicator={false}
+                        overScrollMode="never"
+                        decelerationRate="normal"
+                        scrollEventThrottle={16}
+                        contentContainerStyle={{ paddingBottom: 4 }}
+                      >
+                        {existingAuctionItems.map((item) => (
+                          <View key={item.auctionItemId} style={styles.productItemContainer}>
+                            <View style={{ flexDirection: 'row', flex: 1 }}>
+                              <View style={styles.productImageContainer}>
+                                <Image
+                                  source={{ uri: item.primary_image || 'https://via.placeholder.com/150' }}
+                                  style={styles.productImage}
+                                  resizeMode="cover"
+                                />
                               </View>
-                              <View style={styles.productActions}>
-                                <TouchableOpacity 
-                                  style={[styles.actionButton, { backgroundColor: '#FFF5EB', borderColor: '#FFE0B2' }]}
-                                  onPress={() => handleSelectExistingAuctionItem(item)}
-                                >
-                                  <Ionicons name="checkmark" size={18} color="#A68C7B" />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  style={styles.actionButton}
-                                  onPress={(e) => handleEditItem(item, e)}
-                                >
-                                  <Ionicons name="create-outline" size={16} color="#A68C7B" />
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  style={[styles.actionButton, styles.deleteButton]}
-                                  onPress={(e) => handleDeleteItem(item.auctionItemId, e)}
-                                >
-                                  <Ionicons name="trash-outline" size={16} color="#F44336" />
-                                </TouchableOpacity>
+                              <View style={styles.productInfoContainer}>
+                                <View>
+                                  <Text style={styles.productTitle} numberOfLines={1}>
+                                    {item.title}
+                                  </Text>
+                                  <Text style={[styles.productPrice, { marginBottom: 4 }]}>
+                                    {item.medium}
+                                  </Text>
+                                  <Text style={[styles.productPrice, { marginBottom: 8 }]}>
+                                    {item.dimensions}
+                                  </Text>
+                                </View>
+                                <View style={styles.productActions}>
+                                  <TouchableOpacity 
+                                    style={[styles.actionButton, { backgroundColor: '#FFF5EB', borderColor: '#FFE0B2' }]}
+                                    onPress={() => handleSelectExistingAuctionItem(item)}
+                                  >
+                                    <Ionicons name="checkmark" size={18} color="#A68C7B" />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity 
+                                    style={styles.actionButton}
+                                    onPress={(e) => handleEditItem(item, e)}
+                                  >
+                                    <Ionicons name="create-outline" size={16} color="#A68C7B" />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity 
+                                    style={[styles.actionButton, styles.deleteButton]}
+                                    onPress={(e) => handleDeleteItem(item.auctionItemId, e)}
+                                  >
+                                    <Ionicons name="trash-outline" size={16} color="#F44336" />
+                                  </TouchableOpacity>
+                                </View>
                               </View>
                             </View>
                           </View>
-                        </View>
-                      ))}
-                    </ScrollView>
+                        ))}
+                      </ScrollView>
+                    </>
                   )}
                   {auctionErrors.submit && (
                     <View style={externalStyles.errorContainer}>
@@ -663,7 +690,7 @@ export default function AddAuctionProduct({
                 </View>
               ) : auctionStep === 1 && auctionItemChoice === 'create' ? (
                 <View>
-                  <Text style={externalStyles.sectionHeader}>Product Images</Text>
+                  <Text style={[externalStyles.sectionHeader, { marginTop: -4 }]}>Product Images</Text>
                   <Text style={externalStyles.hintText}>Support: JPG, PNG up to 10MB • Maximum 10 images • First image will be primary</Text>
                   <ScrollView
                     horizontal
@@ -843,7 +870,7 @@ export default function AddAuctionProduct({
                 </View>
               ) : (
                 <View>
-                  <Text style={externalStyles.sectionHeader}>Auction Pricing</Text>
+                  <Text style={[externalStyles.sectionHeader, { marginTop: -4 }]}>Auction Pricing</Text>
                   <Text style={externalStyles.inputLabel}>Starting Price (₱) *</Text>
                   <TextInput
                     style={[externalStyles.input, auctionErrors.startPrice && externalStyles.inputError]}
