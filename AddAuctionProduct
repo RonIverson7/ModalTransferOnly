@@ -540,15 +540,14 @@ export default function AddAuctionProduct({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={externalStyles.modalOverlay}
       >
-        <TouchableOpacity
-          style={externalStyles.modalOverlayTouchable}
-          activeOpacity={1}
-          onPress={handleCloseAuctionModal}
-        >
+        <View style={externalStyles.modalOverlayTouchable}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={handleCloseAuctionModal}
+          />
           <View
             style={externalStyles.modalContent}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => false}
           >
             <View style={externalStyles.modalHeader}>
               {auctionStep === 0 ? (
@@ -1043,7 +1042,7 @@ export default function AddAuctionProduct({
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
 
