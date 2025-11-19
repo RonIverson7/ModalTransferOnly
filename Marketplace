@@ -23,7 +23,7 @@ const MarketplaceScreen = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [listingType, setListingType] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [artworkType, setArtworkType] = useState({
     original: false,
     limited: false,
@@ -57,7 +57,7 @@ const MarketplaceScreen = () => {
   const resetFilters = () => {
     setListingType('all');
     setSelectedCategory('all');
-    setPriceRange({ min: 0, max: 10000 });
+    setPriceRange({ min: 0, max: 100000 });
     setArtworkType({
       original: false,
       limited: false,
@@ -171,6 +171,7 @@ const MarketplaceScreen = () => {
               
               return {
                 id: a.auctionId || a.id,
+                auctionId: a.auctionId || a.id,
                 marketItemId: a.auctionId || a.id,
                 sellerUserId,
                 sellerProfileId: a.sellerProfileId,
@@ -213,8 +214,7 @@ const MarketplaceScreen = () => {
           items = items.filter(item => 
             item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.seller?.shopName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.medium?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            item.medium?.toLowerCase().includes(searchQuery.toLowerCase())
           );
         }
         
@@ -233,7 +233,7 @@ const MarketplaceScreen = () => {
         
         // Price range filter (using dynamic range from state)
         const minPrice = priceRange.min ? parseFloat(priceRange.min) : 0;
-        const maxPrice = priceRange.max ? parseFloat(priceRange.max) : 10000;
+        const maxPrice = priceRange.max ? parseFloat(priceRange.max) : 100000;
         items = items.filter(item => 
           item.price >= minPrice && item.price <= maxPrice
         );
@@ -336,7 +336,7 @@ const MarketplaceScreen = () => {
   const handlePlaceBid = (item, bidAmount) => {
     Alert.alert(
       'Bid Placed',
-      `Your sealed bid of $${bidAmount} has been placed successfully!\n\nYou will be notified when the auction ends.`,
+      `Your sealed bid of ₱${bidAmount} has been placed successfully!\n\nYou will be notified when the auction ends.`,
       [{ text: 'OK' }]
     );
   };
@@ -738,7 +738,7 @@ const MarketplaceScreen = () => {
                   <Text style={styles.priceSeparator}>-</Text>
                   <TextInput
                     style={styles.priceInput}
-                    placeholder="10000"
+                    placeholder="100000"
                     placeholderTextColor="#999"
                     keyboardType="numeric"
                     value={priceRange.max}
@@ -959,15 +959,15 @@ const MarketplaceCard = ({ item, onPress, onAddToCart, currentSellerProfileId })
           {isAuction ? (
             <View style={styles.auctionInfo}>
               <Text style={styles.bidLabel}>Current Bid</Text>
-              <Text style={styles.cardPrice}>${item.currentBid || item.startingPrice || item.price}</Text>
+              <Text style={styles.cardPrice}>₱{item.currentBid || item.startingPrice || item.price}</Text>
               <Text style={styles.timeLeft}>{getTimeRemaining(item.endTime)}</Text>
             </View>
           ) : (
             <View style={styles.priceInfo}>
               {item.originalPrice && (
-                <Text style={styles.originalPrice}>${item.originalPrice}</Text>
+                <Text style={styles.originalPrice}>₱{item.originalPrice}</Text>
               )}
-              <Text style={styles.cardPrice}>${item.price}</Text>
+              <Text style={styles.cardPrice}>₱{item.price}</Text>
             </View>
           )}
           
