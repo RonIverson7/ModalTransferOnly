@@ -28,12 +28,24 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
     addressLine1: '',
     addressLine2: '',
     landmark: '',
-    region: '',
-    province: '',
-    cityMunicipality: '',
-    barangay: '',
+    regionCode: '',
+    regionName: '',
+    provinceCode: '',
+    provinceName: '',
+    cityMunicipalityCode: '',
+    cityMunicipalityName: '',
+    barangayCode: '',
+    barangayName: '',
     postalCode: '',
+    addressType: 'home',
+    deliveryInstructions: '',
+    isDefault: false,
   });
+  const [regions, setRegions] = useState([]);
+  const [provinces, setProvinces] = useState([]);
+  const [citiesMunicipalities, setCitiesMunicipalities] = useState([]);
+  const [barangays, setBarangays] = useState([]);
+  const [openSelect, setOpenSelect] = useState({ region: false, province: false, city: false, barangay: false });
   const [nowTs, setNowTs] = useState(Date.now());
   const { userData } = useUser();
 
@@ -167,31 +179,119 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
     }
   };
 
+  // Location dropdown helpers (PSGC data), aligned with OrderSummary
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const res = await fetch('https://psgc.gitlab.io/api/regions/');
+        const data = await res.json();
+        setRegions(data || []);
+      } catch (e) {
+        console.error('Failed to fetch regions:', e);
+      }
+    };
+    fetchRegions();
+  }, []);
+
+  const onSelectRegion = (code) => {
+    setAddressFormData(p => ({
+      ...p,
+      regionCode: code,
+      provinceCode: '',
+      cityMunicipalityCode: '',
+      barangayCode: '',
+    }));
+    setProvinces([]);
+    setCitiesMunicipalities([]);
+    setBarangays([]);
+    setOpenSelect({ region: false, province: false, city: false, barangay: false });
+
+    fetch(`https://psgc.gitlab.io/api/regions/${code}/provinces/`)
+      .then(res => res.json())
+      .then(data => setProvinces(data || []))
+      .catch(e => console.error('Failed to fetch provinces:', e));
+  };
+
+  const onSelectProvince = (code) => {
+    setAddressFormData(p => ({
+      ...p,
+      provinceCode: code,
+      cityMunicipalityCode: '',
+      barangayCode: '',
+    }));
+    setCitiesMunicipalities([]);
+    setBarangays([]);
+    setOpenSelect(s => ({ ...s, province: false }));
+
+    fetch(`https://psgc.gitlab.io/api/provinces/${code}/cities-municipalities/`)
+      .then(res => res.json())
+      .then(data => setCitiesMunicipalities(data || []))
+      .catch(e => console.error('Failed to fetch cities:', e));
+  };
+
+  const onSelectCity = (code) => {
+    setAddressFormData(p => ({
+      ...p,
+      cityMunicipalityCode: code,
+      barangayCode: '',
+    }));
+    setBarangays([]);
+    setOpenSelect(s => ({ ...s, city: false }));
+
+    fetch(`https://psgc.gitlab.io/api/cities-municipalities/${code}/barangays/`)
+      .then(res => res.json())
+      .then(data => setBarangays(data || []))
+      .catch(e => console.error('Failed to fetch barangays:', e));
+  };
+
+  const onSelectBarangay = (code) => {
+    setAddressFormData(p => ({
+      ...p,
+      barangayCode: code,
+    }));
+    setOpenSelect(s => ({ ...s, barangay: false }));
+  };
+
   const validateAddressForm = () => {
     if (!addressFormData.fullName?.trim()) return 'Full name is required';
+    if (!addressFormData.email?.trim()) return 'Email is required';
     if (!addressFormData.phoneNumber?.trim()) return 'Phone number is required';
     if (!addressFormData.addressLine1?.trim()) return 'Street address is required';
-    if (!addressFormData.cityMunicipality?.trim()) return 'City/Municipality is required';
-    if (!addressFormData.province?.trim()) return 'Province is required';
-    if (!addressFormData.postalCode?.trim()) return 'Postal code is required';
+    if (!addressFormData.regionCode) return 'Region is required';
+    if (!addressFormData.provinceCode) return 'Province is required';
+    if (!addressFormData.cityMunicipalityCode) return 'City/Municipality is required';
+    if (!addressFormData.barangayCode) return 'Barangay is required';
+    if (!/^[0-9]{4}$/.test(String(addressFormData.postalCode || ''))) return 'Postal code must be 4 digits';
     return '';
   };
 
   const openAddAddressForm = () => {
     setEditingAddress(null);
-    setAddressFormData({
+    setAddressFormData(prev => ({
+      ...prev,
       fullName: `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || '',
-      email: userData?.email || '',
-      phoneNumber: userData?.phoneNumber || '',
+      email: prev.email || userData?.email || '',
+      phoneNumber: prev.phoneNumber || userData?.phoneNumber || '',
       addressLine1: '',
       addressLine2: '',
       landmark: '',
-      region: '',
-      province: '',
-      cityMunicipality: '',
-      barangay: '',
+      regionCode: '',
+      regionName: '',
+      provinceCode: '',
+      provinceName: '',
+      cityMunicipalityCode: '',
+      cityMunicipalityName: '',
+      barangayCode: '',
+      barangayName: '',
       postalCode: '',
-    });
+      addressType: 'home',
+      deliveryInstructions: '',
+      isDefault: false,
+    }));
+    setOpenSelect({ region: false, province: false, city: false, barangay: false });
+    setProvinces([]);
+    setCitiesMunicipalities([]);
+    setBarangays([]);
     setShowAddressPicker(false);
     setShowAddressForm(true);
   };
@@ -201,16 +301,23 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
     setEditingAddress(addr);
     setAddressFormData({
       fullName: addr.fullName || '',
-      email: userData?.email || '',
+      email: addr.email || userData?.email || '',
       phoneNumber: addr.phoneNumber || '',
       addressLine1: addr.addressLine1 || '',
       addressLine2: addr.addressLine2 || '',
       landmark: addr.landmark || '',
-      region: addr.regionName || '',
-      province: addr.provinceName || '',
-      cityMunicipality: addr.cityMunicipalityName || '',
-      barangay: addr.barangayName || '',
+      regionCode: addr.regionCode || '',
+      regionName: addr.regionName || '',
+      provinceCode: addr.provinceCode || '',
+      provinceName: addr.provinceName || '',
+      cityMunicipalityCode: addr.cityMunicipalityCode || '',
+      cityMunicipalityName: addr.cityMunicipalityName || '',
+      barangayCode: addr.barangayCode || '',
+      barangayName: addr.barangayName || '',
       postalCode: String(addr.postalCode || ''),
+      addressType: addr.addressType || 'home',
+      deliveryInstructions: addr.deliveryInstructions || '',
+      isDefault: !!addr.isDefault,
     });
     setShowAddressPicker(false);
     setShowAddressForm(true);
@@ -235,18 +342,24 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
       const at = data?.session?.access_token || '';
       const rt = data?.session?.refresh_token || '';
 
-      const payload = {
+      const selRegion = regions.find(r => r.code === addressFormData.regionCode);
+      const selProv = provinces.find(p => p.code === addressFormData.provinceCode);
+      const selCity = citiesMunicipalities.find(c => c.code === addressFormData.cityMunicipalityCode);
+      const selBrgy = barangays.find(b => b.code === addressFormData.barangayCode);
+
+      const addressData = {
+        ...addressFormData,
         fullName: (addressFormData.fullName || '').trim(),
         email: (addressFormData.email || userData?.email || '').trim(),
         phoneNumber: (addressFormData.phoneNumber || '').trim(),
         addressLine1: (addressFormData.addressLine1 || '').trim(),
         addressLine2: (addressFormData.addressLine2 || '').trim(),
         landmark: (addressFormData.landmark || '').trim(),
-        regionName: (addressFormData.region || '').trim(),
-        provinceName: (addressFormData.province || '').trim(),
-        cityMunicipalityName: (addressFormData.cityMunicipality || '').trim(),
-        barangayName: (addressFormData.barangay || '').trim(),
-        postalCode: (addressFormData.postalCode || '').trim(),
+        regionName: selRegion?.name || addressFormData.regionName || '',
+        provinceName: selProv?.name || addressFormData.provinceName || '',
+        cityMunicipalityName: selCity?.name || addressFormData.cityMunicipalityName || '',
+        barangayName: selBrgy?.name || addressFormData.barangayName || '',
+        postalCode: String(addressFormData.postalCode || '').trim(),
       };
 
       const isEditing = !!(editingAddress && editingAddress.userAddressId);
@@ -261,7 +374,7 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
           'Content-Type': 'application/json',
           Cookie: `access_token=${at}; refresh_token=${rt}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(addressData),
       });
 
       const json = await res.json().catch(() => ({}));
@@ -923,53 +1036,194 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
                       placeholder="Near ABC Store"
                       placeholderTextColor="#999"
                     />
+                    <Text style={styles.addressFormSectionTitle}>Location</Text>
 
-                    <Text style={styles.addressFormLabel}>Region *</Text>
-                    <TextInput
-                      style={styles.addressFormInput}
-                      value={addressFormData.region}
-                      onChangeText={text => setAddressFormData(prev => ({ ...prev, region: text }))}
-                      placeholder="Region"
-                      placeholderTextColor="#999"
-                    />
+                    {/* Region */}
+                    <View style={styles.selectGroup}>
+                      <Text style={styles.addressFormLabel}>Region *</Text>
+                      <View style={styles.selectBox}>
+                        <TouchableOpacity
+                          style={styles.selectTrigger}
+                          onPress={() => setOpenSelect(s => ({ ...s, region: !s.region }))}
+                        >
+                          <Text style={styles.selectTriggerText}>
+                            {regions.find(r => r.code === addressFormData.regionCode)?.name || 'Select Region'}
+                          </Text>
+                          <Ionicons name={openSelect.region ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+                        </TouchableOpacity>
+                        {openSelect.region && (
+                          <FlatList
+                            data={regions}
+                            keyExtractor={(item) => String(item.code)}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={[
+                                  styles.selectItem,
+                                  addressFormData.regionCode === item.code && styles.selectItemActive,
+                                ]}
+                                onPress={() => onSelectRegion(item.code)}
+                              >
+                                <Text style={styles.selectItemText}>{item.name}</Text>
+                              </TouchableOpacity>
+                            )}
+                            style={{ maxHeight: 200 }}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator
+                          />
+                        )}
+                      </View>
+                    </View>
 
-                    <Text style={styles.addressFormLabel}>Province *</Text>
-                    <TextInput
-                      style={styles.addressFormInput}
-                      value={addressFormData.province}
-                      onChangeText={text => setAddressFormData(prev => ({ ...prev, province: text }))}
-                      placeholder="Province"
-                      placeholderTextColor="#999"
-                    />
+                    {/* Province */}
+                    <View style={styles.selectGroup}>
+                      <Text style={styles.addressFormLabel}>Province *</Text>
+                      <View style={styles.selectBox}>
+                        <TouchableOpacity
+                          style={styles.selectTrigger}
+                          onPress={() => setOpenSelect(s => ({ ...s, province: !s.province }))}
+                        >
+                          <Text style={styles.selectTriggerText}>
+                            {provinces.find(p => p.code === addressFormData.provinceCode)?.name || 'Select Province'}
+                          </Text>
+                          <Ionicons name={openSelect.province ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+                        </TouchableOpacity>
+                        {openSelect.province && (
+                          <FlatList
+                            data={provinces}
+                            keyExtractor={(item) => String(item.code)}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={[
+                                  styles.selectItem,
+                                  addressFormData.provinceCode === item.code && styles.selectItemActive,
+                                ]}
+                                onPress={() => onSelectProvince(item.code)}
+                              >
+                                <Text style={styles.selectItemText}>{item.name}</Text>
+                              </TouchableOpacity>
+                            )}
+                            style={{ maxHeight: 200 }}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator
+                          />
+                        )}
+                      </View>
+                    </View>
 
-                    <Text style={styles.addressFormLabel}>City/Municipality *</Text>
-                    <TextInput
-                      style={styles.addressFormInput}
-                      value={addressFormData.cityMunicipality}
-                      onChangeText={text => setAddressFormData(prev => ({ ...prev, cityMunicipality: text }))}
-                      placeholder="City or Municipality"
-                      placeholderTextColor="#999"
-                    />
+                    {/* City/Municipality */}
+                    <View style={styles.selectGroup}>
+                      <Text style={styles.addressFormLabel}>City/Municipality *</Text>
+                      <View style={styles.selectBox}>
+                        <TouchableOpacity
+                          style={styles.selectTrigger}
+                          onPress={() => setOpenSelect(s => ({ ...s, city: !s.city }))}
+                        >
+                          <Text style={styles.selectTriggerText}>
+                            {citiesMunicipalities.find(c => c.code === addressFormData.cityMunicipalityCode)?.name || 'Select City/Municipality'}
+                          </Text>
+                          <Ionicons name={openSelect.city ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+                        </TouchableOpacity>
+                        {openSelect.city && (
+                          <FlatList
+                            data={citiesMunicipalities}
+                            keyExtractor={(item) => String(item.code)}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={[
+                                  styles.selectItem,
+                                  addressFormData.cityMunicipalityCode === item.code && styles.selectItemActive,
+                                ]}
+                                onPress={() => onSelectCity(item.code)}
+                              >
+                                <Text style={styles.selectItemText}>{item.name}</Text>
+                              </TouchableOpacity>
+                            )}
+                            style={{ maxHeight: 200 }}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator
+                          />
+                        )}
+                      </View>
+                    </View>
 
-                    <Text style={styles.addressFormLabel}>Barangay *</Text>
-                    <TextInput
-                      style={styles.addressFormInput}
-                      value={addressFormData.barangay}
-                      onChangeText={text => setAddressFormData(prev => ({ ...prev, barangay: text }))}
-                      placeholder="Barangay"
-                      placeholderTextColor="#999"
-                    />
+                    {/* Barangay */}
+                    <View style={styles.selectGroup}>
+                      <Text style={styles.addressFormLabel}>Barangay *</Text>
+                      <View style={styles.selectBox}>
+                        <TouchableOpacity
+                          style={styles.selectTrigger}
+                          onPress={() => setOpenSelect(s => ({ ...s, barangay: !s.barangay }))}
+                        >
+                          <Text style={styles.selectTriggerText}>
+                            {barangays.find(b => b.code === addressFormData.barangayCode)?.name || 'Select Barangay'}
+                          </Text>
+                          <Ionicons name={openSelect.barangay ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+                        </TouchableOpacity>
+                        {openSelect.barangay && (
+                          <FlatList
+                            data={barangays}
+                            keyExtractor={(item) => String(item.code)}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={[
+                                  styles.selectItem,
+                                  addressFormData.barangayCode === item.code && styles.selectItemActive,
+                                ]}
+                                onPress={() => onSelectBarangay(item.code)}
+                              >
+                                <Text style={styles.selectItemText}>{item.name}</Text>
+                              </TouchableOpacity>
+                            )}
+                            style={{ maxHeight: 200 }}
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator
+                          />
+                        )}
+                      </View>
+                    </View>
 
-                    <Text style={styles.addressFormLabel}>Postal Code *</Text>
-                    <TextInput
-                      style={styles.addressFormInput}
-                      value={addressFormData.postalCode}
-                      onChangeText={text => setAddressFormData(prev => ({ ...prev, postalCode: text }))}
-                      placeholder="1234"
-                      placeholderTextColor="#999"
-                      keyboardType="number-pad"
-                      maxLength={8}
-                    />
+                    {/* Additional Options */}
+                    <Text style={styles.addressFormSectionTitle}>Additional Options</Text>
+                    <View style={styles.formRowModal}>
+                      {['home', 'office', 'other'].map(val => (
+                        <TouchableOpacity
+                          key={val}
+                          style={[styles.typeChip, addressFormData.addressType === val && styles.typeChipActive]}
+                          onPress={() => setAddressFormData(p => ({ ...p, addressType: val }))}
+                        >
+                          <Text style={[styles.typeChipText, addressFormData.addressType === val && styles.typeChipTextActive]}>
+                            {val.charAt(0).toUpperCase() + val.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <View style={styles.addressFormGroup}>
+                      <Text style={styles.addressFormLabel}>Postal Code *</Text>
+                      <TextInput
+                        style={styles.addressFormInput}
+                        value={addressFormData.postalCode}
+                        onChangeText={text => setAddressFormData(prev => ({ ...prev, postalCode: text }))}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        placeholder="1234"
+                        placeholderTextColor="#999"
+                      />
+                    </View>
+
+                    <View style={styles.addressFormGroup}>
+                      <Text style={styles.addressFormLabel}>Delivery Instructions (Optional)</Text>
+                      <TextInput
+                        style={styles.addressFormTextarea}
+                        value={addressFormData.deliveryInstructions}
+                        onChangeText={text => setAddressFormData(prev => ({ ...prev, deliveryInstructions: text }))}
+                        multiline
+                        numberOfLines={3}
+                        placeholder="Any special delivery instructions..."
+                        placeholderTextColor="#999"
+                        textAlignVertical="top"
+                      />
+                    </View>
                   </ScrollView>
 
                   <View style={styles.addressFormActions}>
@@ -1466,6 +1720,13 @@ const styles = StyleSheet.create({
   addressFormBody: {
     marginTop: 4,
   },
+  addressFormSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2C1810',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   addressFormLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -1481,6 +1742,79 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     color: '#333',
+  },
+  addressFormGroup: {
+    marginTop: 10,
+  },
+  addressFormTextarea: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#333',
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  formRowModal: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  selectGroup: {
+    marginBottom: 12,
+  },
+  selectBox: {
+    borderWidth: 1,
+    borderColor: '#E8E0D8',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  selectTrigger: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+  },
+  selectTriggerText: {
+    fontSize: 13,
+    color: '#2C1810',
+    flex: 1,
+  },
+  selectItem: {
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E0D8',
+  },
+  selectItemActive: {
+    backgroundColor: '#FFF8F3',
+  },
+  selectItemText: {
+    fontSize: 13,
+    color: '#2C1810',
+  },
+  typeChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E8E0D8',
+    alignItems: 'center',
+    marginRight: 8,
+    backgroundColor: '#fff',
+  },
+  typeChipActive: {
+    backgroundColor: '#A68C7B',
+    borderColor: '#A68C7B',
+  },
+  typeChipText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+  },
+  typeChipTextActive: {
+    color: '#fff',
   },
   addressFormActions: {
     flexDirection: 'row',
