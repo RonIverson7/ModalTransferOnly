@@ -193,14 +193,15 @@ export default function AddMarketProduct({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={externalStyles.modalOverlay}
       >
-        <TouchableOpacity
+        <View
           style={externalStyles.modalOverlayTouchable}
-          activeOpacity={1}
-          onPress={handleCloseModal}
         >
           <TouchableOpacity
+            style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
+            onPress={handleCloseModal}
+          />
+          <View
             style={externalStyles.modalContent}
           >
             <View style={externalStyles.modalHeader}>
@@ -472,10 +473,9 @@ export default function AddMarketProduct({
                 <Text style={externalStyles.submitBtnText}>Add Product</Text>
               </TouchableOpacity>
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
-
