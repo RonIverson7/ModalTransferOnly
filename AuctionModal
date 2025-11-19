@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Modal, ScrollView, Image, TouchableOpacity, TextInput, Alert, Dimensions, FlatList } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Modal,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Dimensions,
+  FlatList,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../supabase/supabaseClient';
 import { useUser } from '../contexts/UserContext';
@@ -30,11 +42,33 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
   const [nowTs, setNowTs] = useState(Date.now());
   const { userData } = useUser();
 
-  // Images from API (primary_image + images[])
-  const images = item ? [
-    item.primary_image,
-    ...(Array.isArray(item.images) ? item.images : [])
-  ].filter(Boolean) : [];
+  const normalizeImageUri = (img) => {
+    if (!img) return null;
+    if (typeof img === 'string') return img.trim();
+    if (typeof img === 'object') {
+      const possible =
+        img.uri ||
+        img.url ||
+        img.image_url ||
+        img.imageUrl ||
+        img.path ||
+        img.location;
+      return typeof possible === 'string' ? possible.trim() : null;
+    }
+    return null;
+  };
+
+  // Images from API (primary_image + images[]) with dedupe + normalization
+  const images = item
+    ? [
+        normalizeImageUri(item.primary_image),
+        ...(Array.isArray(item.images)
+          ? item.images.map(normalizeImageUri)
+          : []),
+      ]
+        .filter(Boolean)
+        .filter((uri, index, arr) => arr.indexOf(uri) === index)
+    : [];
   
   // Handle scroll end to update selected image index
   const onScrollEnd = (event) => {
@@ -571,25 +605,25 @@ export default function AuctionModal({ visible, onClose, item, onPlaceBid }) {
               <View style={styles.bidSection}>
                 <View style={styles.auctionStats}>
                   {startPriceVal > 0 && (
-                    <View style={styles.statItem}>
+                    <View style={[styles.statItem, (startsAt || endsAt || timerLabel) && styles.statItem]}>
                       <Text style={styles.statLabel}>Starting Price</Text>
                       <Text style={styles.statValue}>₱{startPriceVal.toLocaleString()}</Text>
                     </View>
                   )}
                   {startsAt && (
-                    <View style={styles.statItem}>
+                    <View style={[styles.statItem, (endsAt || timerLabel) && styles.statItem]}>
                       <Text style={styles.statLabel}>Starts</Text>
                       <Text style={styles.statValue}>{new Date(startsAt).toLocaleDateString()}</Text>
                     </View>
                   )}
                   {endsAt && (
-                    <View style={styles.statItem}>
+                    <View style={[styles.statItem, !!timerLabel && styles.statItem]}>
                       <Text style={styles.statLabel}>Ends</Text>
                       <Text style={styles.statValue}>{new Date(endsAt).toLocaleDateString()}</Text>
                     </View>
                   )}
                   {(startsAt || endsAt) && !!timerLabel && (
-                    <View style={styles.statItem}>
+                    <View style={[styles.statItem, styles.statItemLast]}>
                       <Text style={styles.statLabel}>Time</Text>
                       <Text style={styles.statValue}>{timerLabel}</Text>
                     </View>
@@ -1010,25 +1044,37 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
   },
   auctionStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#F5F0EB',
-    borderRadius: 10,
-    paddingVertical: 10,
-    marginBottom: 12,
+    backgroundColor: '#FFF8F3',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E8DDD0',
   },
   statItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0E8E0',
+  },
+  statItemLast: {
+    borderBottomWidth: 0,
   },
   statLabel: {
-    fontSize: 10,
-    color: '#999',
-    marginBottom: 2,
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+    flex: 1,
   },
   statValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2C1810',
+    textAlign: 'right',
+    flex: 1,
   },
   bidFormLabel: {
     fontSize: 13,
