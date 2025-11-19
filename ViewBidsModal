@@ -196,10 +196,6 @@ export default function ViewBidsModal({
               </>
             )}
           </ScrollView>
-
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeBtnText}>Close</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -379,20 +375,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#333',
-  },
-
-  closeBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  closeBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#A68C7B',
   },
 });
