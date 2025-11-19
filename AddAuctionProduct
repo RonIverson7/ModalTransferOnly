@@ -552,7 +552,10 @@ export default function AddAuctionProduct({
           >
             <View style={externalStyles.modalHeader}>
               {auctionStep === 0 ? (
-                <Text style={externalStyles.modalTitle}>Create Auction</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={externalStyles.modalTitle}>Create Auction</Text>
+                  <Text style={[styles.stepSubtitle, { marginTop: 4, marginBottom: 0, paddingHorizontal: 0 }]}>Choose how to create your auction</Text>
+                </View>
               ) : auctionStep === 1 && auctionItemChoice === 'existing' ? (
                 <View style={{ flex: 1 }}>
                   <Text style={externalStyles.modalTitle}>Add Auction - Step 1: Select Item</Text>
@@ -589,8 +592,7 @@ export default function AddAuctionProduct({
               directionalLockEnabled={false}
             >
               {auctionStep === 0 ? (
-                <View style={externalStyles.choiceContainer}>
-                  <Text style={externalStyles.hintText}>Choose how to create your auction</Text>
+                <View style={[externalStyles.choiceContainer, { marginTop: -15 }]}>
                   <TouchableOpacity
                     style={externalStyles.choiceCard}
                     onPress={() => handleAuctionChoiceSelect('create')}
