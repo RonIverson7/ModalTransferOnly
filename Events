@@ -286,6 +286,7 @@ const EventsScreen = () => {
       ) : (
         <ScrollView 
           style={styles.eventGrid}
+          contentContainerStyle={styles.eventGridContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -375,6 +376,9 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   eventGrid: { padding: 10 },
+  eventGridContent: {
+    paddingBottom: 10,
+  },
   row: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   eventCard: {
     width: '48%',
