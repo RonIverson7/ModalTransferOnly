@@ -8,6 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AndroidFooterSpacer from '../components/Footer';
 import AddAddressModal from '../components/AddAddressModal';
+import EditAddressModal from '../components/EditAddressModal';
 
 const API_BASE = "http://192.168.100.87:3000/api";
 
@@ -29,6 +30,8 @@ const OrderSummaryScreen = () => {
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [accessToken, setAccessToken] = useState(null);
   const [refreshToken, setRefreshToken] = useState(null);
+  const [showEditAddressModal, setShowEditAddressModal] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
   
   // P2P Migration: Direct purchase support
   const isDirectPurchase = params.directPurchase === 'true';
@@ -168,6 +171,60 @@ const OrderSummaryScreen = () => {
 
   const handleAddressAdded = async () => {
     await fetchAddresses(accessToken, refreshToken);
+  };
+
+  const openEditAddressForm = (addr) => {
+    if (!addr) return;
+    setEditingAddress(addr);
+    setShowEditAddressModal(true);
+  };
+
+  const handleAddressUpdated = async () => {
+    await fetchAddresses(accessToken, refreshToken);
+    setShowEditAddressModal(false);
+  };
+
+  const handleDeleteAddress = async (addr) => {
+    if (!addr?.userAddressId) return;
+
+    Alert.alert(
+      'Delete Address',
+      'Delete this address? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await supabase.auth.getSession();
+              const at = data?.session?.access_token || '';
+              const rt = data?.session?.refresh_token || '';
+
+              const res = await fetch(`${API_BASE}/marketplace/addresses/${addr.userAddressId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Cookie: `access_token=${at}; refresh_token=${rt}`,
+                },
+              });
+
+              const json = await res.json().catch(() => ({}));
+              if (!res.ok || json?.success === false) {
+                const msg = json?.error || json?.message || 'Failed to delete address';
+                Alert.alert('Error', msg);
+                return;
+              }
+
+              await fetchAddresses(accessToken, refreshToken);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'Failed to delete address');
+            }
+          },
+        },
+      ]
+    );
   };
 
   useEffect(() => {
@@ -432,21 +489,40 @@ const OrderSummaryScreen = () => {
                 <Text style={styles.addMoreAddressText}>Add New Address</Text>
               </TouchableOpacity>
               {addresses.map(addr => (
-                <TouchableOpacity
+                <View
                   key={addr.userAddressId}
-                  style={[styles.addressCard, selectedAddress === addr.userAddressId && styles.addressCardSelected]}
-                  onPress={() => setSelectedAddress(addr.userAddressId)}
+                  style={{ position: 'relative', marginBottom: 12 }}
                 >
-                  <View style={styles.addressRadio}>
-                    {selectedAddress === addr.userAddressId && <View style={styles.addressRadioSelected} />}
+                  <TouchableOpacity
+                    style={[styles.addressCard, selectedAddress === addr.userAddressId && styles.addressCardSelected]}
+                    onPress={() => setSelectedAddress(addr.userAddressId)}
+                  >
+                    <View style={styles.addressRadio}>
+                      {selectedAddress === addr.userAddressId && <View style={styles.addressRadioSelected} />}
+                    </View>
+                    <View style={styles.addressInfo}>
+                      <Text style={styles.addressName}>{addr.fullName}</Text>
+                      <Text style={styles.addressText}>{addr.addressLine1}</Text>
+                      <Text style={styles.addressText}>{addr.barangayName}, {addr.cityMunicipalityName}</Text>
+                      <Text style={styles.addressText}>{addr.phoneNumber}</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <View style={styles.addressActionsRow}>
+                    <TouchableOpacity
+                      onPress={() => openEditAddressForm(addr)}
+                      style={{ marginRight: 12, padding: 4 }}
+                    >
+                      <Ionicons name="create-outline" size={18} color="#A68C7B" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteAddress(addr)}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#D32F2F" />
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.addressInfo}>
-                    <Text style={styles.addressName}>{addr.fullName}</Text>
-                    <Text style={styles.addressText}>{addr.addressLine1}</Text>
-                    <Text style={styles.addressText}>{addr.barangayName}, {addr.cityMunicipalityName}</Text>
-                    <Text style={styles.addressText}>{addr.phoneNumber}</Text>
-                  </View>
-                </TouchableOpacity>
+                </View>
               ))}
             </>
           )}
@@ -536,6 +612,16 @@ const OrderSummaryScreen = () => {
         userData={userData}
         accessToken={accessToken}
         refreshToken={refreshToken}
+      />
+      {/* Edit Address Modal */}
+      <EditAddressModal
+        visible={showEditAddressModal}
+        onClose={() => setShowEditAddressModal(false)}
+        address={editingAddress}
+        userData={userData}
+        accessToken={accessToken}
+        refreshToken={refreshToken}
+        onAddressUpdated={handleAddressUpdated}
       />
       <AndroidFooterSpacer />
     </SafeAreaView>
@@ -680,6 +766,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 2,
+  },
+  addressActionsRow: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   addAddressBtn: {
     flexDirection: 'row',
