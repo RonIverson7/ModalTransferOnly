@@ -491,7 +491,7 @@ const HomeScreen = () => {
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 1,
       allowsMultipleSelection: true,
     });
@@ -521,7 +521,9 @@ const HomeScreen = () => {
       pickedImages.forEach((uri) => {
         const filename = uri.split("/").pop();
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image/jpeg`;
+        const ext = match ? match[1].toLowerCase() : 'jpeg';
+        const isVideo = /^(mp4|mov|avi|mkv|webm)$/.test(ext);
+        const type = isVideo ? `video/${ext}` : `image/${ext}`;
         formData.append('images', { uri, name: filename, type });
       });
 
@@ -534,7 +536,9 @@ const HomeScreen = () => {
       pickedImages.slice(0, 4).forEach((uri, index) => {
         const filename = uri.split("/").pop();
         const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image/jpeg`;
+        const ext = match ? match[1].toLowerCase() : 'jpeg';
+        const isVideo = /^(mp4|mov|avi|mkv|webm)$/.test(ext);
+        const type = isVideo ? `video/${ext}` : `image/${ext}`;
         const fieldName = index === 0 ? "file" : `file${index + 1}`;
         formData.append(fieldName, { uri, name: filename, type });
       });
