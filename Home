@@ -1620,11 +1620,16 @@ const HomeScreen = () => {
                 isMuted={false}
                 resizeMode="contain"
                 useNativeControls
+                shouldPlay={true}
                 progressUpdateIntervalMillis={500}
-                onLoad={() => {
-                  // Seek to saved position when video loads
+                onLoad={async () => {
+                  // Seek to saved position when video loads and play immediately
                   if (videoPosition > 0 && videoRef.current) {
-                    videoRef.current.playFromPositionAsync(videoPosition * 1000); // Convert seconds to milliseconds
+                    try {
+                      await videoRef.current.playFromPositionAsync(videoPosition * 1000); // Convert seconds to milliseconds
+                    } catch (err) {
+                      console.log('Error seeking video:', err);
+                    }
                   }
                 }}
                 style={{ width: '100%', height: '100%' }}
