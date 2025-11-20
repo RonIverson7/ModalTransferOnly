@@ -3,7 +3,9 @@ import { StyleSheet, View, Text, SafeAreaView, Image, TouchableOpacity, Modal, T
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
+import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
+
 import Header from '../components/Header';
 
 import { supabase } from "../../supabase/supabaseClient";
@@ -73,6 +75,8 @@ const HomeScreen = () => {
   const [fullscreenVideoId, setFullscreenVideoId] = useState(null);
   const [videoMuteState, setVideoMuteState] = useState({});
   const [videoPlaybackPosition, setVideoPlaybackPosition] = useState({});
+  const [videoIsPlaying, setVideoIsPlaying] = useState({});
+  const [videoDuration, setVideoDuration] = useState({});
   const videoRefs = React.useRef({});
 
   // Profile modal and fields
@@ -1067,7 +1071,7 @@ const HomeScreen = () => {
                     style={styles.postVideo}
                     resizeMode="contain"
                     useNativeControls={false}
-                    shouldPlay={true}
+                    shouldPlay={!modalVisible}
                     isLooping
                     isMuted={isMuted}
                     progressUpdateIntervalMillis={500}
@@ -1557,37 +1561,100 @@ const HomeScreen = () => {
 
           {fullscreenVideoId && (
             <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
-              <Video
-                ref={(ref) => { videoRefs.current[fullscreenVideoId] = ref; }}
-                source={{ uri: posts.find(p => p.id === fullscreenVideoId)?.image?.[0] || posts.find(p => p.id === fullscreenVideoId)?.images?.[0] }}
-                style={styles.fullScreenVideo}
-                resizeMode="contain"
-                useNativeControls={false}
-                shouldPlay={false}
-                progressUpdateIntervalMillis={500}
-                isLooping
-                isMuted={videoMuteState[fullscreenVideoId] || false}
-                onLoad={async () => {
-                  // Seek to saved position BEFORE playing
-                  const savedPosition = videoPlaybackPosition[fullscreenVideoId];
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                onPress={async () => {
                   if (videoRefs.current[fullscreenVideoId]) {
-                    if (savedPosition) {
-                      await videoRefs.current[fullscreenVideoId].setPositionAsync(savedPosition);
+                    const isPlaying = videoIsPlaying[fullscreenVideoId];
+                    if (isPlaying) {
+                      await videoRefs.current[fullscreenVideoId].pauseAsync();
+                    } else {
+                      await videoRefs.current[fullscreenVideoId].playAsync();
                     }
-                    // Now start playing after seeking
-                    await videoRefs.current[fullscreenVideoId].playAsync();
-                  }
-                }}
-                onPlaybackStatusUpdate={(status) => {
-                  // Save playback position
-                  if (status.isLoaded && !status.didJustFinish) {
-                    setVideoPlaybackPosition(prev => ({
+                    setVideoIsPlaying(prev => ({
                       ...prev,
-                      [fullscreenVideoId]: status.positionMillis
+                      [fullscreenVideoId]: !isPlaying
                     }));
                   }
                 }}
-              />
+              >
+                <Video
+                  ref={(ref) => { videoRefs.current[fullscreenVideoId] = ref; }}
+                  source={{ uri: posts.find(p => p.id === fullscreenVideoId)?.image?.[0] || posts.find(p => p.id === fullscreenVideoId)?.images?.[0] }}
+                  style={styles.fullScreenVideo}
+                  resizeMode="contain"
+                  useNativeControls={false}
+                  shouldPlay={videoIsPlaying[fullscreenVideoId] !== false}
+                  progressUpdateIntervalMillis={100}
+                  isLooping={false}
+                  isMuted={videoMuteState[fullscreenVideoId] || false}
+                  onLoad={async () => {
+                    // Seek to saved position immediately
+                    const savedPosition = videoPlaybackPosition[fullscreenVideoId];
+                    if (videoRefs.current[fullscreenVideoId] && savedPosition) {
+                      await videoRefs.current[fullscreenVideoId].setPositionAsync(savedPosition);
+                    }
+                  }}
+                  onPlaybackStatusUpdate={(status) => {
+                    // Save playback position and track duration
+                    if (status.isLoaded) {
+                      if (!status.didJustFinish) {
+                        setVideoPlaybackPosition(prev => ({
+                          ...prev,
+                          [fullscreenVideoId]: status.positionMillis
+                        }));
+                      }
+                      setVideoDuration(prev => ({
+                        ...prev,
+                        [fullscreenVideoId]: status.durationMillis
+                      }));
+                      setVideoIsPlaying(prev => ({
+                        ...prev,
+                        [fullscreenVideoId]: status.isPlaying
+                      }));
+                    }
+                  }}
+                />
+                {/* Play/Pause icon overlay */}
+                {!videoIsPlaying[fullscreenVideoId] && (
+                  <View style={{ position: 'absolute', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="play-circle" size={80} color="rgba(255,255,255,0.8)" />
+                  </View>
+                )}
+              </TouchableOpacity>
+              {/* Progress bar with scrubber */}
+              <View style={styles.fullscreenProgressContainer}>
+                <Slider
+                  style={styles.fullscreenProgressBar}
+                  minimumValue={0}
+                  maximumValue={videoDuration[fullscreenVideoId] || 0}
+                  value={videoPlaybackPosition[fullscreenVideoId] || 0}
+                  onSlidingStart={async () => {
+                    if (videoRefs.current[fullscreenVideoId]) {
+                      await videoRefs.current[fullscreenVideoId].pauseAsync();
+                    }
+                  }}
+                  onValueChange={async (value) => {
+                    if (videoRefs.current[fullscreenVideoId]) {
+                      await videoRefs.current[fullscreenVideoId].setPositionAsync(value);
+                    }
+                  }}
+                  onSlidingComplete={async () => {
+                    if (videoRefs.current[fullscreenVideoId] && videoIsPlaying[fullscreenVideoId]) {
+                      await videoRefs.current[fullscreenVideoId].playAsync();
+                    }
+                  }}
+                  minimumTrackTintColor="#A68C7B"
+                  maximumTrackTintColor="rgba(255,255,255,0.3)"
+                  thumbTintColor="#A68C7B"
+                />
+                <View style={styles.fullscreenTimeContainer}>
+                  <Text style={styles.fullscreenTimeText}>
+                    {Math.floor((videoPlaybackPosition[fullscreenVideoId] || 0) / 1000)}/{Math.floor((videoDuration[fullscreenVideoId] || 0) / 1000)}
+                  </Text>
+                </View>
+              </View>
               {/* Fullscreen mute button */}
               <TouchableOpacity
                 style={styles.fullscreenVideoMuteButton}
@@ -1862,6 +1929,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 5,
+  },
+  fullscreenProgressContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 80,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 4,
+  },
+  fullscreenProgressBar: {
+    width: '100%',
+    height: 32,
+  },
+  fullscreenTimeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginTop: 6,
+  },
+  fullscreenTimeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
   actions: { 
     flexDirection: 'row', 
