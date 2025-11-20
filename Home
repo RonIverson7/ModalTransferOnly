@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, Image, TouchableOpacity, Modal, TextInput, TouchableWithoutFeedback, FlatList, ScrollView, Platform, KeyboardAvoidingView, Keyboard, Dimensions, BackHandler, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { Video } from 'expo-av';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../components/Header';
 
@@ -68,6 +69,12 @@ const HomeScreen = () => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const commentListRef = React.useRef(null);
 
+  // Video fullscreen and mute state
+  const [fullscreenVideoId, setFullscreenVideoId] = useState(null);
+  const [videoMuteState, setVideoMuteState] = useState({});
+  const [videoPlaybackPosition, setVideoPlaybackPosition] = useState({});
+  const videoRefs = React.useRef({});
+
   // Profile modal and fields
   const [profileModalVisible, setProfileModalVisible] = useState(false);
 
@@ -107,6 +114,13 @@ const HomeScreen = () => {
       return typeof value.uri === 'string' ? value.uri : null;
     }
     return null;
+  };
+
+  // Helper: detect if URI is a video (matches web version logic)
+  const isVideoUrl = (uri) => {
+    if (!uri || typeof uri !== 'string') return false;
+    const path = uri.split('?')[0].toLowerCase();
+    return /\.mp4(\?.*)?$/i.test(path);
   };
 
   // Check if user has art preferences
@@ -475,7 +489,7 @@ const HomeScreen = () => {
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 1,
       allowsMultipleSelection: true,
     });
@@ -1030,7 +1044,66 @@ const HomeScreen = () => {
 
           const postImageUri = imageArray.length > 0 ? ensureUri(imageArray[0]) : null;
 
-          return postImageUri ? (
+          if (!postImageUri) {
+            return null;
+          }
+
+          const isVideo = isVideoUrl(postImageUri);
+
+          if (isVideo) {
+            const isMuted = videoMuteState[post.id] || false;
+            const isFullscreen = fullscreenVideoId === post.id;
+            
+            return (
+              <View style={{ marginTop: 8 }}>
+                <TouchableOpacity 
+                  activeOpacity={0.9}
+                  onPress={() => setFullscreenVideoId(post.id)}
+                  style={{ position: 'relative' }}
+                >
+                  <Video
+                    ref={(ref) => { videoRefs.current[post.id] = ref; }}
+                    source={{ uri: postImageUri }}
+                    style={styles.postVideo}
+                    resizeMode="contain"
+                    useNativeControls={false}
+                    shouldPlay={true}
+                    isLooping
+                    isMuted={isMuted}
+                    progressUpdateIntervalMillis={500}
+                    onPlaybackStatusUpdate={(status) => {
+                      // Save playback position
+                      if (status.isLoaded && !status.didJustFinish) {
+                        setVideoPlaybackPosition(prev => ({
+                          ...prev,
+                          [post.id]: status.positionMillis
+                        }));
+                      }
+                    }}
+                  />
+                  {/* Custom mute button overlay */}
+                  <TouchableOpacity
+                    style={styles.videoMuteButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setVideoMuteState(prev => ({
+                        ...prev,
+                        [post.id]: !prev[post.id]
+                      }));
+                    }}
+                  >
+                    <Ionicons 
+                      name={isMuted ? "volume-mute" : "volume-high"} 
+                      size={20} 
+                      color="white" 
+                    />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
+            );
+          }
+
+          return (
             <TouchableOpacity onPress={() => {
               setSelectedImages(imageArray.map(img => ({ uri: ensureUri(img) })));
               setCurrentImageIndex(0);
@@ -1053,7 +1126,7 @@ const HomeScreen = () => {
                 </View>
               )}
             </TouchableOpacity>
-          ) : null;
+          );
         })()}
 
         {!!post.timestamp && (
@@ -1299,7 +1372,6 @@ const HomeScreen = () => {
           setImagesToRemove([]);
           setModalVisible(true);
         }}>
-          {/* Show user's profile avatar if available; fallback keeps same size */}
           <Ionicons name="create-outline" size={24} color="#555" style={{ marginRight: 8 }} />
           <Text style={{ color: '#555' }}>Share inspiration, artwork or a thought</Text>
         </TouchableOpacity>
@@ -1310,9 +1382,24 @@ const HomeScreen = () => {
         keyExtractor={(item) => `${item.itemType}-${item.id || item.eventId}`}
         renderItem={({ item }) => item.itemType === 'event' ? renderEvent({ item }) : renderPost({ item })}
         contentContainerStyle={{ paddingBottom: 5 }}
-
+        
         onScroll={() => setMenuVisiblePostId(null)}
         scrollEventThrottle={16}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        onViewableItemsChanged={({ viewableItems }) => {
+          // Pause all videos not in viewport, resume those in viewport
+          posts.forEach(post => {
+            const isVisible = viewableItems.some(item => item.key === `post-${post.id}`);
+            if (videoRefs.current[post.id]) {
+              if (!isVisible) {
+                videoRefs.current[post.id].pauseAsync?.();
+              } else {
+                // Resume video when it comes back into view
+                videoRefs.current[post.id].playAsync?.();
+              }
+            }
+          });
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1439,6 +1526,86 @@ const HomeScreen = () => {
               </View>
             )}
           />
+        </View>
+      </Modal>
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={fullscreenVideoId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreenVideoId(null)}
+      >
+        <View style={styles.fullScreenContainer}>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 40,
+              right: 20,
+              zIndex: 10,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              borderRadius: 20,
+              width: 40,
+              height: 40,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => setFullscreenVideoId(null)}
+          >
+            <Ionicons name="close" size={24} color="white" />
+          </TouchableOpacity>
+
+          {fullscreenVideoId && (
+            <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+              <Video
+                ref={(ref) => { videoRefs.current[fullscreenVideoId] = ref; }}
+                source={{ uri: posts.find(p => p.id === fullscreenVideoId)?.image?.[0] || posts.find(p => p.id === fullscreenVideoId)?.images?.[0] }}
+                style={styles.fullScreenVideo}
+                resizeMode="contain"
+                useNativeControls={false}
+                shouldPlay={false}
+                progressUpdateIntervalMillis={500}
+                isLooping
+                isMuted={videoMuteState[fullscreenVideoId] || false}
+                onLoad={async () => {
+                  // Seek to saved position BEFORE playing
+                  const savedPosition = videoPlaybackPosition[fullscreenVideoId];
+                  if (videoRefs.current[fullscreenVideoId]) {
+                    if (savedPosition) {
+                      await videoRefs.current[fullscreenVideoId].setPositionAsync(savedPosition);
+                    }
+                    // Now start playing after seeking
+                    await videoRefs.current[fullscreenVideoId].playAsync();
+                  }
+                }}
+                onPlaybackStatusUpdate={(status) => {
+                  // Save playback position
+                  if (status.isLoaded && !status.didJustFinish) {
+                    setVideoPlaybackPosition(prev => ({
+                      ...prev,
+                      [fullscreenVideoId]: status.positionMillis
+                    }));
+                  }
+                }}
+              />
+              {/* Fullscreen mute button */}
+              <TouchableOpacity
+                style={styles.fullscreenVideoMuteButton}
+                onPress={() => {
+                  setVideoMuteState(prev => ({
+                    ...prev,
+                    [fullscreenVideoId]: !prev[fullscreenVideoId]
+                  }));
+                }}
+              >
+                <Ionicons 
+                  name={videoMuteState[fullscreenVideoId] ? "volume-mute" : "volume-high"} 
+                  size={24} 
+                  color="white" 
+                />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -1660,6 +1827,41 @@ const styles = StyleSheet.create({
     height: 180, 
     borderRadius: 8, 
     marginBottom: 10 
+  },
+  postVideo: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: 'black',
+  },
+  videoMuteButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 24,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  fullScreenVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenVideoMuteButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 28,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
   },
   actions: { 
     flexDirection: 'row', 
@@ -2067,6 +2269,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#A68C7B',
     marginTop: 4,
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 8,
+  },
+  gifOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  gifLabel: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   uploadImagePicker: {
     width: '100%',
