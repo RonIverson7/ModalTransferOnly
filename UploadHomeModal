@@ -11,6 +11,26 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Video } from 'expo-av';
+
+// Helper function to detect if URI is a video or GIF
+const isVideoOrGif = (uri) => {
+  if (!uri || typeof uri !== 'string') return false;
+  const path = uri.split('?')[0].toLowerCase();
+  return /\.(mp4|mov|avi|mkv|gif)(\?.*)?$/i.test(path);
+};
+
+const isVideo = (uri) => {
+  if (!uri || typeof uri !== 'string') return false;
+  const path = uri.split('?')[0].toLowerCase();
+  return /\.(mp4|mov|avi|mkv)(\?.*)?$/i.test(path);
+};
+
+const isGif = (uri) => {
+  if (!uri || typeof uri !== 'string') return false;
+  const path = uri.split('?')[0].toLowerCase();
+  return /\.gif(\?.*)?$/i.test(path);
+};
 
 export default function UploadModalHome({
   modalVisible,
@@ -92,7 +112,7 @@ export default function UploadModalHome({
                 />
               </View>
 
-              <Text style={styles.uploadInputLabel}>Photos (Optional)</Text>
+              <Text style={styles.uploadInputLabel}>Media (Photos, Videos, GIFs)</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -100,7 +120,29 @@ export default function UploadModalHome({
               >
                 {existingImages.map((imageUrl, index) => (
                   <View key={`existing-${index}`} style={styles.postImageContainer}>
-                    <Image source={{ uri: imageUrl }} style={styles.postPreviewImage} />
+                    {isVideo(imageUrl) ? (
+                      <View style={styles.postPreviewImage}>
+                        <Video
+                          source={{ uri: imageUrl }}
+                          style={styles.postPreviewImage}
+                          resizeMode="cover"
+                          isLooping
+                          shouldPlay={false}
+                        />
+                        <View style={styles.videoOverlay}>
+                          <Ionicons name="play-circle" size={32} color="#fff" />
+                        </View>
+                      </View>
+                    ) : isGif(imageUrl) ? (
+                      <View style={styles.postPreviewImage}>
+                        <Image source={{ uri: imageUrl }} style={styles.postPreviewImage} />
+                        <View style={styles.gifOverlay}>
+                          <Text style={styles.gifLabel}>GIF</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Image source={{ uri: imageUrl }} style={styles.postPreviewImage} />
+                    )}
                     <TouchableOpacity
                       onPress={() => {
                         setExistingImages((prev) => prev.filter((_, i) => i !== index));
@@ -113,22 +155,44 @@ export default function UploadModalHome({
                   </View>
                 ))}
 
-                {pickedImages.map((item, index) => (
-                  <View key={`new-${index}`} style={styles.postImageContainer}>
-                    <Image
-                      source={{ uri: Array.isArray(item) ? item[0] : item }}
-                      style={styles.postPreviewImage}
-                    />
-                    <TouchableOpacity onPress={() => removeImage(index)} style={styles.postRemoveBtn}>
-                      <Ionicons name="close-circle" size={26} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {pickedImages.map((item, index) => {
+                  const uri = Array.isArray(item) ? item[0] : item;
+                  return (
+                    <View key={`new-${index}`} style={styles.postImageContainer}>
+                      {isVideo(uri) ? (
+                        <View style={styles.postPreviewImage}>
+                          <Video
+                            source={{ uri }}
+                            style={styles.postPreviewImage}
+                            resizeMode="cover"
+                            isLooping
+                            shouldPlay={false}
+                          />
+                          <View style={styles.videoOverlay}>
+                            <Ionicons name="play-circle" size={32} color="#fff" />
+                          </View>
+                        </View>
+                      ) : isGif(uri) ? (
+                        <View style={styles.postPreviewImage}>
+                          <Image source={{ uri }} style={styles.postPreviewImage} />
+                          <View style={styles.gifOverlay}>
+                            <Text style={styles.gifLabel}>GIF</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Image source={{ uri }} style={styles.postPreviewImage} />
+                      )}
+                      <TouchableOpacity onPress={() => removeImage(index)} style={styles.postRemoveBtn}>
+                        <Ionicons name="close-circle" size={26} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
 
                 <View style={styles.postImageContainer}>
                   <TouchableOpacity onPress={pickImage} style={styles.postAddPhotoBtn}>
                     <Ionicons name="image-outline" size={32} color="#A68C7B" />
-                    <Text style={styles.postAddPhotoText}>Add Photo</Text>
+                    <Text style={styles.postAddPhotoText}>Add Media</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
