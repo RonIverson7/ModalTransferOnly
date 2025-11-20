@@ -93,6 +93,8 @@ const HomeScreen = () => {
 
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [videoPosition, setVideoPosition] = useState(0); // Track video playback position in seconds
+  const videoRef = React.useRef(null); // Reference to video component for seeking
 
   const formattedDate = birthday.toLocaleDateString("en-US");
 
@@ -1046,8 +1048,20 @@ const HomeScreen = () => {
           const isVideo = postMediaUri && isVideoUri(postMediaUri);
 
           return postMediaUri ? (
-            <TouchableOpacity onPress={() => {
+            <TouchableOpacity onPress={async () => {
               if (isVideo) {
+                // Get current playback position from preview video if available
+                if (videoRef.current) {
+                  try {
+                    const status = await videoRef.current.getStatusAsync();
+                    setVideoPosition(status.positionMillis / 1000); // Convert to seconds
+                  } catch (err) {
+                    console.log('Error getting video position:', err);
+                    setVideoPosition(0);
+                  }
+                } else {
+                  setVideoPosition(0);
+                }
                 setSelectedVideo(postMediaUri);
                 setVideoModalVisible(true);
               } else {
@@ -1058,9 +1072,18 @@ const HomeScreen = () => {
             }}>
               {isVideo ? (
                 <View style={styles.postImage}>
-                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-                    <Ionicons name="play-circle" size={60} color="rgba(255,255,255,0.8)" />
-                  </View>
+                  <Video
+                    ref={videoRef}
+                    source={{ uri: postMediaUri }}
+                    rate={1.0}
+                    volume={1.0}
+                    isMuted={true}
+                    resizeMode="cover"
+                    isLooping={true}
+                    shouldPlay={true}
+                    progressUpdateIntervalMillis={500}
+                    style={{ width: '100%', height: '100%' }}
+                  />
                 </View>
               ) : (
                 <Image source={{ uri: postMediaUri }} style={styles.postImage} resizeMode="cover" />
@@ -1590,12 +1613,20 @@ const HomeScreen = () => {
           {selectedVideo && (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
               <Video
+                ref={videoRef}
                 source={{ uri: selectedVideo }}
                 rate={1.0}
                 volume={1.0}
                 isMuted={false}
                 resizeMode="contain"
                 useNativeControls
+                progressUpdateIntervalMillis={500}
+                onLoad={() => {
+                  // Seek to saved position when video loads
+                  if (videoPosition > 0 && videoRef.current) {
+                    videoRef.current.playFromPositionAsync(videoPosition * 1000); // Convert seconds to milliseconds
+                  }
+                }}
                 style={{ width: '100%', height: '100%' }}
               />
             </View>
