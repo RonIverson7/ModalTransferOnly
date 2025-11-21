@@ -588,8 +588,26 @@ const HomeScreen = () => {
       setImagesToRemove([]);
 
       Alert.alert('Success', `Post ${isEditing ? 'updated' : 'created'} successfully!`);
-      // Refetch posts to get the updated data
-      await fetchPosts();
+
+      if (isEditing) {
+        // For edits: update only the edited post to preserve scroll position
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post.id === editingPostId
+              ? {
+                  ...post,
+                  text: postText,
+                  description: postText,
+                  image: [...existingImages, ...pickedImages],
+                  images: [...existingImages, ...pickedImages],
+                }
+              : post
+          )
+        );
+      } else {
+        // For new posts: refetch to get the updated data
+        await fetchPosts();
+      }
     } catch (err) {
       setError(err?.message || "Failed to upload post");
       Alert.alert('Error', err?.message || "Failed to upload post");
