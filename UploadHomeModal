@@ -54,7 +54,7 @@ export default function UploadModalHome({
 }) {
   return (
     <Modal
-      visible={modalVisible}
+      visible={modalVisible && editingPostId === null}
       transparent
       animationType="slide"
       onRequestClose={() => {
@@ -73,7 +73,7 @@ export default function UploadModalHome({
         <View style={styles.uploadModalOverlay}>
           <View style={styles.uploadModalContent}>
             <View style={styles.uploadModalHeader}>
-              <Text style={styles.uploadModalTitle}>{editingPostId ? 'Edit Post' : 'Create Post'}</Text>
+              <Text style={styles.uploadModalTitle}>Create Post</Text>
               <TouchableOpacity
                 onPress={() => {
                   setModalVisible(false);
@@ -198,7 +198,7 @@ export default function UploadModalHome({
               </ScrollView>
 
               <TouchableOpacity style={styles.uploadButton} onPress={uploadPost} disabled={loading}>
-                <Text style={styles.uploadButtonText}>{editingPostId ? 'Update' : 'Post'}</Text>
+                <Text style={styles.uploadButtonText}>{loading ? 'Posting...' : 'Post'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
