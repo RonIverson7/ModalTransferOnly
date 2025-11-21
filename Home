@@ -11,6 +11,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useUser } from '../contexts/UserContext';
 import AndroidFooterSpacer from '../components/Footer';
 import UploadModalHome from '../components/UploadHomeModal';
+import EditHomeModal from '../components/EditHomeModal';
 import CommentModal from '../components/CommentModal';
 import SetProfileModalinHome from '../components/SetProfileModalinHome';
 import PreferenceModal from '../components/PreferenceModal';
@@ -1498,6 +1499,27 @@ const HomeScreen = () => {
       </Modal>
 
       <UploadModalHome
+        modalVisible={modalVisible}
+        setModalVisible={setModalVisible}
+        postText={postText}
+        setPostText={setPostText}
+        pickedImages={pickedImages}
+        setPickedImages={setPickedImages}
+        existingImages={existingImages}
+        setExistingImages={setExistingImages}
+        imagesToRemove={imagesToRemove}
+        setImagesToRemove={setImagesToRemove}
+        editingPostId={editingPostId}
+        setEditingPostId={setEditingPostId}
+        loading={loading}
+        image={image}
+        uploadPost={uploadPost}
+        pickImage={pickImage}
+        removeImage={removeImage}
+        styles={styles}
+      />
+
+      <EditHomeModal
         modalVisible={modalVisible}
         setModalVisible={setModalVisible}
         postText={postText}
