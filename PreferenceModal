@@ -1,12 +1,24 @@
 import React from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  ScrollView,
-} from 'react-native';
+import { Modal, View, Text, TouchableOpacity, TouchableWithoutFeedback, ScrollView,} from 'react-native';
+
+const PREFERENCE_SLUG_MAP = {
+  classical: 'classicalArt',
+  contemporary: 'contemporary',
+  impressionist: 'impressionist',
+  abstract: 'abstractArt',
+  sculpture: 'sculpture',
+  photography: 'photography',
+  digital: 'digitalArt',
+  street: 'streetArt',
+  minimalist: 'minimalist',
+  surrealist: 'surrealist',
+  landscape: 'landscape',
+  portrait: 'portrait',
+  miniature: 'miniature',
+  expressionist: 'expressionist',
+  realism: 'realism',
+  conceptual: 'conceptual',
+};
 
 export default function PreferenceModal({
   interestsModalVisible,
@@ -87,33 +99,46 @@ export default function PreferenceModal({
                 style={[styles.saveButton, { flex: 1, backgroundColor: '#A68C7B', opacity: selectedInterests.length ? 1 : 0.5, alignItems: 'center', justifyContent: 'center' }]}
                 disabled={!selectedInterests.length}
                 onPress={async () => {
-                  const preferences = {
-                    classicalArt: selectedInterests.includes('classical'),
-                    contemporaryArt: selectedInterests.includes('contemporary'),
-                    impressionist: selectedInterests.includes('impressionist'),
-                    abstractArt: selectedInterests.includes('abstract'),
-                    sculpture: selectedInterests.includes('sculpture'),
-                    photography: selectedInterests.includes('photography'),
-                    digitalArt: selectedInterests.includes('digital'),
-                    streetArt: selectedInterests.includes('street'),
-                    minimalist: selectedInterests.includes('minimalist'),
-                    surrealist: selectedInterests.includes('surrealist'),
-                    landscape: selectedInterests.includes('landscape'),
-                    portrait: selectedInterests.includes('portrait'),
-                    miniature: selectedInterests.includes('miniature'),
-                    expressionist: selectedInterests.includes('expressionist'),
-                    realism: selectedInterests.includes('realism'),
-                    conceptual: selectedInterests.includes('conceptual'),
-                  };
+                  if (!selectedInterests.length) {
+                    return;
+                  }
                   try {
-                    const res = await fetch(`${API_BASE}/profile/saveArtPreferences`, {
+                    // Load gallery categories to resolve real categoryIds from selected slugs
+                    const catRes = await fetch(`${API_BASE}/gallery/categories?page=1&limit=50&nocache=1`, {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Cookie': `access_token=${accessToken}; refresh_token=${refreshToken}`,
+                      },
+                      credentials: 'include',
+                    });
+                    if (!catRes.ok) {
+                      throw new Error(`Failed to load categories (${catRes.status})`);
+                    }
+                    const catData = await catRes.json();
+                    const catList = Array.isArray(catData?.categories) ? catData.categories : [];
+
+                    const categoryIds = selectedInterests
+                      .map((slug) => {
+                        const backendSlug = PREFERENCE_SLUG_MAP[slug] || slug;
+                        const match = catList.find((c) => c.slug === backendSlug);
+                        return match?.categoryId || match?.id || null;
+                      })
+                      .filter(Boolean);
+
+                    if (!categoryIds.length) {
+                      alert('Please wait for categories to load and try again.');
+                      return;
+                    }
+
+                    const res = await fetch(`${API_BASE}/gallery/preferences`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
                         'Cookie': `access_token=${accessToken}; refresh_token=${refreshToken}`,
                       },
                       credentials: 'include',
-                      body: JSON.stringify(preferences),
+                      body: JSON.stringify({ categoryIds }),
                     });
                     if (!res.ok) {
                       let errMsg = `Failed to save preferences (${res.status})`;
@@ -129,7 +154,9 @@ export default function PreferenceModal({
                       } catch {}
                       throw new Error(errMsg);
                     }
-                    setHasArtPreferences(true);
+                    if (typeof setHasArtPreferences === 'function') {
+                      setHasArtPreferences(true);
+                    }
                     setInterestsModalVisible(false);
                   } catch (e) {
                     console.log('saveArtPreferences error:', e?.message || e);
