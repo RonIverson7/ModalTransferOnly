@@ -8,8 +8,10 @@ import { supabase } from "../../supabase/supabaseClient";
 import Header from '../components/Header';
 import { useUser } from '../contexts/UserContext';
 import AndroidFooterSpacer from '../components/Footer';
+import ReportModal from '../components/ReportModal';
+import EditViewGalleryModal from '../components/EditViewGalleryModal';
+import { API_BASE } from '../config';
 
-const API_BASE = "http://192.168.100.87:3000/api";
 const API_ORIGIN = API_BASE.replace(/\/api$/, "");
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -46,6 +48,11 @@ const ViewGalleryScreen = () => {
   const [commentMenuForId, setCommentMenuForId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
+
+  // Report modal state
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportTargetType, setReportTargetType] = useState(null);
+  const [reportTargetId, setReportTargetId] = useState(null);
   
   // Edit modal states
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -57,12 +64,8 @@ const ViewGalleryScreen = () => {
   const [newImages, setNewImages] = useState([]);
   const [imagesToRemove, setImagesToRemove] = useState([]);
   const [editSubmitting, setEditSubmitting] = useState(false);
-  
-  const categories = [
-    'Classical Art', 'Abstract Art', 'Impressionist', 'Contemporary Art',
-    'Digital Art', 'Photography', 'Sculpture', 'Street Art', 'Landscape',
-    'Portrait', 'Surrealist', 'Minimalist', 'Expressionist', 'Realism', 'Conceptual'
-  ];
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   const loadSession = async () => {
     const { data } = await supabase.auth.getSession();
@@ -71,6 +74,40 @@ const ViewGalleryScreen = () => {
       at: data?.session?.access_token || null,
       rt: data?.session?.refresh_token || null,
     };
+  };
+
+  const fetchCategoriesForEdit = async () => {
+    try {
+      setCategoriesLoading(true);
+      const { at, rt } = await loadSession();
+
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', '1');
+      queryParams.append('limit', '200');
+      queryParams.append('nocache', '1');
+
+      const res = await fetch(`${API_BASE}/gallery/categories?${queryParams.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `access_token=${at}; refresh_token=${rt}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.categories)) {
+        const options = data.categories
+          .map((c) => c.name || c.slug)
+          .filter((v) => typeof v === 'string' && v.trim().length > 0);
+        setCategories(options);
+      }
+    } catch (error) {
+      console.error('Error fetching categories for edit:', error);
+    } finally {
+      setCategoriesLoading(false);
+    }
   };
 
   // Role now comes from UserContext - no need to fetch separately
@@ -239,40 +276,16 @@ const ViewGalleryScreen = () => {
     );
   };
 
+  const openReportModal = (targetType, targetId) => {
+    setReportTargetType(targetType);
+    setReportTargetId(targetId);
+    setReportModalVisible(true);
+  };
+
   const handleReportArtwork = () => {
-    Alert.alert(
-      'Report Artwork',
-      'Are you sure you want to report this artwork? Our team will review it.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Report',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { at, rt } = await loadSession();
-              const res = await fetch(`${API_BASE}/gallery/reportArtwork`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Cookie: `access_token=${at}; refresh_token=${rt}`,
-                },
-                body: JSON.stringify({ artworkId: artwork.id, reason: 'Inappropriate' }),
-              });
-              
-              if (res.ok) {
-                Alert.alert('Success', 'Artwork reported successfully. Our team will review it.');
-              } else {
-                Alert.alert('Error', 'Failed to report artwork. Please try again.');
-              }
-            } catch (err) {
-              console.error('Report error:', err);
-              Alert.alert('Error', 'Unable to send report right now.');
-            }
-          }
-        }
-      ]
-    );
+    if (artwork?.id) {
+      openReportModal('artwork', artwork.id);
+    }
   };
 
   const fetchArtworkDetails = async () => {
@@ -469,6 +482,7 @@ const ViewGalleryScreen = () => {
     if (artworkId) {
       fetchArtworkDetails();
       fetchComments();
+      fetchCategoriesForEdit();
       // Role now comes from UserContext automatically
     } else {
       setLoading(false);
@@ -893,7 +907,7 @@ const ViewGalleryScreen = () => {
                           style={styles.menuItem}
                           onPress={handleEditArtwork}
                         >
-                          <Ionicons name="pencil-outline" size={18} color="#555" />
+                          <Ionicons name="create-outline" size={18} color="#555" />
                           <Text style={styles.menuItemText}>Edit</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
@@ -962,7 +976,7 @@ const ViewGalleryScreen = () => {
               <Ionicons 
                 name={liked ? 'heart' : 'heart-outline'} 
                 size={24} 
-                color={liked ? '#A68C7B' : '#666'} 
+                color={liked ? 'red' : '#666'} 
               />
               <Text style={styles.statText}>{likeCount}</Text>
             </TouchableOpacity>
@@ -1149,138 +1163,37 @@ const ViewGalleryScreen = () => {
         </View>
       </Modal>
 
-      {/* Edit Artwork Modal */}
-      <Modal
+      <EditViewGalleryModal
         visible={editModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setEditModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.editModalOverlay}>
-            <View style={styles.editModalContent}>
-              {/* Header */}
-              <View style={styles.editModalHeader}>
-                <Text style={styles.editModalTitle}>Edit Artwork</Text>
-                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                  <Ionicons name="close" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
+        onClose={() => setEditModalVisible(false)}
+        existingImages={existingImages}
+        newImages={newImages}
+        onRemoveExistingImage={removeExistingImage}
+        onRemoveNewImage={removeNewImage}
+        onPickNewImages={pickNewImages}
+        editTitle={editTitle}
+        onChangeTitle={setEditTitle}
+        editMedium={editMedium}
+        onChangeMedium={setEditMedium}
+        editDescription={editDescription}
+        onChangeDescription={setEditDescription}
+        categories={categories}
+        editCategories={editCategories}
+        onToggleCategory={handleCategoryToggle}
+        onSubmit={submitEditArtwork}
+        editSubmitting={editSubmitting}
+      />
 
-              <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
-                {/* Images Section */}
-                <View style={{ marginBottom: 20 }}>
-                  <Text style={styles.editLabel}>Images (Max 5)</Text>
-                  
-                  {/* Image Grid */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    {/* Existing Images */}
-                    {existingImages.map((imageUrl, index) => (
-                      <View key={`existing-${index}`} style={styles.editImagePreview}>
-                        <Image source={{ uri: imageUrl }} style={styles.editImagePreviewImage} />
-                        <TouchableOpacity 
-                          onPress={() => removeExistingImage(imageUrl)}
-                          style={styles.editImageRemoveBtn}
-                        >
-                          <Ionicons name="close-circle" size={26} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                    
-                    {/* New Images */}
-                    {newImages.map((imageObj) => (
-                      <View key={imageObj.id} style={styles.editImagePreview}>
-                        <Image source={{ uri: imageObj.uri }} style={styles.editImagePreviewImage} />
-                        <TouchableOpacity 
-                          onPress={() => removeNewImage(imageObj.id)}
-                          style={styles.editImageRemoveBtn}
-                        >
-                          <Ionicons name="close-circle" size={26} color="#fff" />
-                        </TouchableOpacity>
-                        <View style={styles.editImageNewBadge}>
-                          <Text style={{ color: '#fff', fontSize: 10 }}>NEW</Text>
-                        </View>
-                      </View>
-                    ))}
-                    
-                    {/* Add Image Button */}
-                    {(existingImages.length + newImages.length) < 5 && (
-                      <TouchableOpacity onPress={pickNewImages} style={styles.editAddImageBtn}>
-                        <Ionicons name="add" size={32} color="#A68C7B" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-
-                {/* Title Input */}
-                <Text style={styles.editLabel}>Title *</Text>
-                <TextInput
-                  style={styles.editInput}
-                  placeholder="Enter artwork title"
-                  value={editTitle}
-                  onChangeText={setEditTitle}
-                />
-
-                {/* Medium Input */}
-                <Text style={styles.editLabel}>Medium *</Text>
-                <TextInput
-                  style={styles.editInput}
-                  placeholder="e.g., Oil on Canvas, Digital Art"
-                  value={editMedium}
-                  onChangeText={setEditMedium}
-                />
-
-                {/* Description Input */}
-                <Text style={styles.editLabel}>Description *</Text>
-                <TextInput
-                  style={[styles.editInput, styles.editTextArea]}
-                  placeholder="Describe your artwork..."
-                  value={editDescription}
-                  onChangeText={setEditDescription}
-                  multiline
-                  numberOfLines={4}
-                />
-
-                {/* Categories */}
-                <Text style={styles.editLabel}>Categories *</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                  {categories.map(category => (
-                    <TouchableOpacity
-                      key={category}
-                      onPress={() => handleCategoryToggle(category)}
-                      style={[
-                        styles.editCategoryBtn,
-                        editCategories.includes(category) && styles.editCategoryBtnActive
-                      ]}
-                    >
-                      <Text style={[
-                        styles.editCategoryBtnText,
-                        editCategories.includes(category) && styles.editCategoryBtnTextActive
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Update Button */}
-                <TouchableOpacity
-                  style={[styles.editSubmitBtn, editSubmitting && { opacity: 0.6 }]}
-                  onPress={submitEditArtwork}
-                  disabled={editSubmitting}
-                >
-                  <Text style={styles.editSubmitBtnText}>
-                    {editSubmitting ? 'Updating...' : 'Update Artwork'}
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <ReportModal
+        isOpen={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        targetType={reportTargetType}
+        targetId={reportTargetId}
+        onSubmitted={() => {
+          setReportModalVisible(false);
+          Alert.alert('Success', 'Report submitted. Thank you.');
+        }}
+      />
     </SafeAreaView>
   );
 };
